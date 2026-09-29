@@ -44,13 +44,24 @@ sol! {
 
     // Minimal ERC20 for resolving decimals.
     #[derive(Debug)]
+    #[sol(rpc)]
     interface IERC20 {
         function decimals() external view returns (uint8);
     }
 }
 
+/// Resolves a token's decimals by calling `decimals()` on the token contract.
+/// Returns `None` if the call fails.
+async fn resolve_token(provider: &impl Provider, address: Address) -> Option<Token> {
+    let contract = IERC20::new(address, &provider);
+    match contract.decimals().call().await {
+        Ok(decimals) => Some(Token { address, decimals }),
+        Err(_) => None,
+    }
+}
+
 /// V1 listener: fetches `NewExchange` logs for the V1 factory at `block_number`
-/// and decodes them into `PairData`.
+/// and decodes them into `PairEvent`.
 pub async fn v1_listener(
     provider: &impl Provider,
     sled_db: Db,
@@ -67,28 +78,21 @@ pub async fn v1_listener(
 
     for log in logs {
         let ev = NewExchangeV1::decode_log(&log.inner)?;
-        let id = PairId {
-            version: UniswapVersion::V1,
-            pair_address: ev.address,
+        let data = NewExchangeV1Data {
+            token: ev.token,
+            exchange: ev.address,
         };
-        if !sled_db.contains_key(id).unwrap() {
+        let id = data.pair_id();
+        if sled_db.contains_key(id).unwrap() {
             continue;
         }
-        let token0 = Token {
-            address: ev.token,
-            decimals: 18,
-        };
-        let token1 = Token {
-            address: Address::ZERO,
-            decimals: 18,
-        };
-        let data = PairData {
-            pair_address: ev.address,
-            version: UniswapVersion::V1,
+        let token0 = resolve_token(provider, data.token).await;
+        let resolved = ResolvedPairEvent {
+            event: PairEvent::V1(data),
             token0,
-            token1,
+            token1: None,
         };
-        sled_db.insert(id, data).unwrap();
+        sled_db.insert(id, resolved).unwrap();
     }
 
     let mut stream = provider
@@ -98,25 +102,18 @@ pub async fn v1_listener(
         .flat_map(futures::stream::iter);
     while let Some(log) = stream.next().await {
         if let Ok(data) = NewExchangeV1::decode_log(&log.inner) {
-            let id = PairId {
-                version: UniswapVersion::V1,
-                pair_address: data.address,
+            let event = NewExchangeV1Data {
+                token: data.token,
+                exchange: data.address,
             };
-            let token0 = Token {
-                address: data.token,
-                decimals: 18,
-            };
-            let token1 = Token {
-                address: Address::ZERO,
-                decimals: 18,
-            };
-            let pair_data = PairData {
-                pair_address: data.address,
-                version: UniswapVersion::V1,
+            let id = event.pair_id();
+            let token0 = resolve_token(provider, event.token).await;
+            let resolved = ResolvedPairEvent {
+                event: PairEvent::V1(event),
                 token0,
-                token1,
+                token1: None,
             };
-            sled_db.insert(id, pair_data).unwrap();
+            sled_db.insert(id, resolved).unwrap();
         }
     }
 
@@ -124,7 +121,7 @@ pub async fn v1_listener(
 }
 
 /// V2 listener: fetches `PairCreated` logs for the V2 factory at `block_number`
-/// and decodes them into `PairData`.
+/// and decodes them into `PairEvent`.
 pub async fn v2_listener(
     provider: &impl Provider,
     sled_db: Db,
@@ -141,28 +138,24 @@ pub async fn v2_listener(
 
     for log in logs {
         let ev = PairCreatedV2::decode_log(&log.inner)?;
-        let id = PairId {
-            version: UniswapVersion::V2,
-            pair_address: ev.pair,
+        let data = PairCreatedV2Data {
+            token0: ev.token0,
+            token1: ev.token1,
+            pair: ev.pair,
+            all_pairs_length: ev.allPairsLength,
         };
-        if !sled_db.contains_key(id).unwrap() {
+        let id = data.pair_id();
+        if sled_db.contains_key(id).unwrap() {
             continue;
         }
-        let token0 = Token {
-            address: ev.token0,
-            decimals: 18,
-        };
-        let token1 = Token {
-            address: ev.token1,
-            decimals: 18,
-        };
-        let data = PairData {
-            pair_address: ev.pair,
-            version: UniswapVersion::V2,
+        let token0 = resolve_token(provider, data.token0).await;
+        let token1 = resolve_token(provider, data.token1).await;
+        let resolved = ResolvedPairEvent {
+            event: PairEvent::V2(data),
             token0,
             token1,
         };
-        sled_db.insert(id, data).unwrap();
+        sled_db.insert(id, resolved).unwrap();
     }
 
     let mut stream = provider
@@ -172,25 +165,21 @@ pub async fn v2_listener(
         .flat_map(futures::stream::iter);
     while let Some(log) = stream.next().await {
         if let Ok(data) = PairCreatedV2::decode_log(&log.inner) {
-            let id = PairId {
-                version: UniswapVersion::V2,
-                pair_address: data.pair,
+            let event = PairCreatedV2Data {
+                token0: data.token0,
+                token1: data.token1,
+                pair: data.pair,
+                all_pairs_length: data.allPairsLength,
             };
-            let token0 = Token {
-                address: data.token0,
-                decimals: 18,
-            };
-            let token1 = Token {
-                address: data.token1,
-                decimals: 18,
-            };
-            let pair_data = PairData {
-                pair_address: data.pair,
-                version: UniswapVersion::V2,
+            let id = event.pair_id();
+            let token0 = resolve_token(provider, event.token0).await;
+            let token1 = resolve_token(provider, event.token1).await;
+            let resolved = ResolvedPairEvent {
+                event: PairEvent::V2(event),
                 token0,
                 token1,
             };
-            sled_db.insert(id, pair_data).unwrap();
+            sled_db.insert(id, resolved).unwrap();
         }
     }
 
@@ -198,7 +187,7 @@ pub async fn v2_listener(
 }
 
 /// V3 listener: fetches `PoolCreated` logs for the V3 factory at `block_number`
-/// and decodes them into `PairData`.
+/// and decodes them into `PairEvent`.
 pub async fn v3_listener(
     provider: &impl Provider,
     sled_db: Db,
@@ -215,28 +204,25 @@ pub async fn v3_listener(
 
     for log in logs {
         let ev = PoolCreatedV3::decode_log(&log.inner)?;
-        let id = PairId {
-            version: UniswapVersion::V3,
-            pair_address: ev.pool,
+        let data = PoolCreatedV3Data {
+            token0: ev.token0,
+            token1: ev.token1,
+            fee: ev.fee.to(),
+            tick_spacing: ev.tickSpacing.low_i32(),
+            pool: ev.pool,
         };
-        if !sled_db.contains_key(id).unwrap() {
+        let id = data.pair_id();
+        if sled_db.contains_key(id).unwrap() {
             continue;
         }
-        let token0 = Token {
-            address: ev.token0,
-            decimals: 18,
-        };
-        let token1 = Token {
-            address: ev.token1,
-            decimals: 18,
-        };
-        let data = PairData {
-            pair_address: ev.pool,
-            version: UniswapVersion::V3,
+        let token0 = resolve_token(provider, data.token0).await;
+        let token1 = resolve_token(provider, data.token1).await;
+        let resolved = ResolvedPairEvent {
+            event: PairEvent::V3(data),
             token0,
             token1,
         };
-        sled_db.insert(id, data).unwrap();
+        sled_db.insert(id, resolved).unwrap();
     }
 
     let mut stream = provider
@@ -246,25 +232,22 @@ pub async fn v3_listener(
         .flat_map(futures::stream::iter);
     while let Some(log) = stream.next().await {
         if let Ok(data) = PoolCreatedV3::decode_log(&log.inner) {
-            let id = PairId {
-                version: UniswapVersion::V3,
-                pair_address: data.pool,
+            let event = PoolCreatedV3Data {
+                token0: data.token0,
+                token1: data.token1,
+                fee: data.fee.to(),
+                tick_spacing: data.tickSpacing.low_i32(),
+                pool: data.pool,
             };
-            let token0 = Token {
-                address: data.token0,
-                decimals: 18,
-            };
-            let token1 = Token {
-                address: data.token1,
-                decimals: 18,
-            };
-            let pair_data = PairData {
-                pair_address: data.pool,
-                version: UniswapVersion::V3,
+            let id = event.pair_id();
+            let token0 = resolve_token(provider, event.token0).await;
+            let token1 = resolve_token(provider, event.token1).await;
+            let resolved = ResolvedPairEvent {
+                event: PairEvent::V3(event),
                 token0,
                 token1,
             };
-            sled_db.insert(id, pair_data).unwrap();
+            sled_db.insert(id, resolved).unwrap();
         }
     }
 
@@ -272,7 +255,7 @@ pub async fn v3_listener(
 }
 
 /// V4 listener: fetches `PoolCreated` logs for the V4 factory at `block_number`
-/// and decodes them into `PairData`.
+/// and decodes them into `PairEvent`.
 pub async fn v4_listener(
     provider: &impl Provider,
     sled_db: Db,
@@ -289,32 +272,26 @@ pub async fn v4_listener(
 
     for log in logs {
         let ev = PoolCreatedV4::decode_log(&log.inner)?;
-        // V4 pools are identified by poolId; the counterfactual address is
-        // derived from the pool manager + PoolId. Stored here as the pool
-        // manager address with the PoolId reserved for later resolution.
-        let pair_address: Address = ev.hooks;
-        let id = PairId {
-            version: UniswapVersion::V4,
-            pair_address,
+        let data = PoolCreatedV4Data {
+            token0: ev.token0,
+            token1: ev.token1,
+            fee: ev.fee.to(),
+            tick_spacing: ev.tickSpacing.low_i32(),
+            hooks: ev.hooks,
+            pool_id: ev.poolId.0,
         };
-        if !sled_db.contains_key(id).unwrap() {
+        let id = data.pair_id();
+        if sled_db.contains_key(id).unwrap() {
             continue;
         }
-        let token0 = Token {
-            address: ev.token0,
-            decimals: 18,
-        };
-        let token1 = Token {
-            address: ev.token1,
-            decimals: 18,
-        };
-        let data = PairData {
-            pair_address,
-            version: UniswapVersion::V4,
+        let token0 = resolve_token(provider, data.token0).await;
+        let token1 = resolve_token(provider, data.token1).await;
+        let resolved = ResolvedPairEvent {
+            event: PairEvent::V4(data),
             token0,
             token1,
         };
-        sled_db.insert(id, data).unwrap();
+        sled_db.insert(id, resolved).unwrap();
     }
 
     let mut stream = provider
@@ -324,26 +301,23 @@ pub async fn v4_listener(
         .flat_map(futures::stream::iter);
     while let Some(log) = stream.next().await {
         if let Ok(data) = PoolCreatedV4::decode_log(&log.inner) {
-            let pair_address: Address = data.hooks;
-            let id = PairId {
-                version: UniswapVersion::V4,
-                pair_address,
+            let event = PoolCreatedV4Data {
+                token0: data.token0,
+                token1: data.token1,
+                fee: data.fee.to(),
+                tick_spacing: data.tickSpacing.low_i32(),
+                hooks: data.hooks,
+                pool_id: data.poolId.0,
             };
-            let token0 = Token {
-                address: data.token0,
-                decimals: 18,
-            };
-            let token1 = Token {
-                address: data.token1,
-                decimals: 18,
-            };
-            let pair_data = PairData {
-                pair_address,
-                version: UniswapVersion::V4,
+            let id = event.pair_id();
+            let token0 = resolve_token(provider, event.token0).await;
+            let token1 = resolve_token(provider, event.token1).await;
+            let resolved = ResolvedPairEvent {
+                event: PairEvent::V4(event),
                 token0,
                 token1,
             };
-            sled_db.insert(id, pair_data).unwrap();
+            sled_db.insert(id, resolved).unwrap();
         }
     }
 
