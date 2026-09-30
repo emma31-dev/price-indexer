@@ -1380,6 +1380,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
+name = "bincode"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd6a120d2e16b3e1b4a24bd70f23b12d3e16b81f113364a26935f8db7245452d"
+
+[[package]]
 name = "bitcoin-consensus-encoding"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3477,9 +3483,11 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "axum",
+ "bincode",
  "chrono",
  "futures",
  "parquet",
+ "serde",
  "sled",
  "thiserror",
  "tokio",

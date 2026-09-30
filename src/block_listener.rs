@@ -48,6 +48,8 @@ sol! {
     #[sol(rpc)]
     interface IERC20 {
         function decimals() external view returns (uint8);
+        function name() external view returns (string);
+        function symbol() external view returns (string);
     }
 }
 
@@ -55,10 +57,15 @@ sol! {
 /// Returns `None` if the call fails.
 async fn resolve_token(provider: &impl Provider, address: Address) -> Option<Token> {
     let contract = IERC20::new(address, &provider);
-    match contract.decimals().call().await {
-        Ok(decimals) => Some(Token { address, decimals }),
-        Err(_) => None,
-    }
+    let decimals = contract.decimals().call().await.ok()?;
+    let name = contract.name().call().await.ok()?;
+    let symbol = contract.symbol().call().await.ok()?;
+    Some(Token {
+        address,
+        decimals,
+        name,
+        symbol,
+    })
 }
 
 /// V1 listener: fetches `NewExchange` logs for the V1 factory at `block_number`
