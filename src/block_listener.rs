@@ -1,3 +1,4 @@
+use crate::error::ServerError;
 use crate::types::*;
 use alloy::primitives::Address;
 use alloy::providers::Provider;
@@ -62,10 +63,7 @@ async fn resolve_token(provider: &impl Provider, address: Address) -> Option<Tok
 
 /// V1 listener: fetches `NewExchange` logs for the V1 factory at `block_number`
 /// and decodes them into `PairEvent`.
-pub async fn v1_listener(
-    provider: &impl Provider,
-    sled_db: Db,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V1_FACTORY")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -100,6 +98,7 @@ pub async fn v1_listener(
         .await?
         .into_stream()
         .flat_map(futures::stream::iter);
+
     while let Some(log) = stream.next().await {
         if let Ok(data) = NewExchangeV1::decode_log(&log.inner) {
             let event = NewExchangeV1Data {
@@ -122,10 +121,7 @@ pub async fn v1_listener(
 
 /// V2 listener: fetches `PairCreated` logs for the V2 factory at `block_number`
 /// and decodes them into `PairEvent`.
-pub async fn v2_listener(
-    provider: &impl Provider,
-    sled_db: Db,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V2_FACTORY")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -188,10 +184,7 @@ pub async fn v2_listener(
 
 /// V3 listener: fetches `PoolCreated` logs for the V3 factory at `block_number`
 /// and decodes them into `PairEvent`.
-pub async fn v3_listener(
-    provider: &impl Provider,
-    sled_db: Db,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V3_FACTORY")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -256,10 +249,7 @@ pub async fn v3_listener(
 
 /// V4 listener: fetches `PoolCreated` logs for the V4 factory at `block_number`
 /// and decodes them into `PairEvent`.
-pub async fn v4_listener(
-    provider: &impl Provider,
-    sled_db: Db,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V4_FACTORY")
         .ok()
         .and_then(|s| s.parse().ok())
