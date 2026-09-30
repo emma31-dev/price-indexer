@@ -1,3 +1,4 @@
+use crate::error::ServerError;
 use alloy::primitives::Address;
 use std::collections::HashMap;
 
@@ -86,12 +87,15 @@ pub struct NewExchangeV1Data {
 
 #[allow(unused)]
 impl TryFrom<sled::IVec> for NewExchangeV1Data {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
         if bytes.len() != 20 + 20 {
-            return Err(());
+            return Err(ServerError::MissMatchByte {
+                expected: 40,
+                returned: bytes.len(),
+            });
         }
         let token = Address::from_slice(&bytes[0..20]);
         let exchange = Address::from_slice(&bytes[20..40]);
@@ -135,12 +139,15 @@ pub struct PairCreatedV2Data {
 
 #[allow(unused)]
 impl TryFrom<sled::IVec> for PairCreatedV2Data {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
         if bytes.len() != 20 + 20 + 20 + 32 {
-            return Err(());
+            return Err(ServerError::MissMatchByte {
+                expected: 20 + 20 + 20 + 32,
+                returned: bytes.len(),
+            });
         }
         let token0 = Address::from_slice(&bytes[0..20]);
         let token1 = Address::from_slice(&bytes[20..40]);
@@ -195,17 +202,20 @@ pub struct PoolCreatedV3Data {
 
 #[allow(unused)]
 impl TryFrom<sled::IVec> for PoolCreatedV3Data {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
         if bytes.len() != 20 + 20 + 4 + 4 + 20 {
-            return Err(());
+            return Err(ServerError::MissMatchByte {
+                expected: 20 + 20 + 4 + 4 + 20,
+                returned: bytes.len(),
+            });
         }
         let token0 = Address::from_slice(&bytes[0..20]);
         let token1 = Address::from_slice(&bytes[20..40]);
-        let fee = u32::from_be_bytes(bytes[40..44].try_into().map_err(|_| ())?);
-        let tick_spacing = i32::from_be_bytes(bytes[44..48].try_into().map_err(|_| ())?);
+        let fee = u32::from_be_bytes(bytes[40..44].try_into().unwrap());
+        let tick_spacing = i32::from_be_bytes(bytes[44..48].try_into().unwrap());
         let pool = Address::from_slice(&bytes[48..68]);
         Ok(PoolCreatedV3Data {
             token0,
@@ -260,17 +270,20 @@ pub struct PoolCreatedV4Data {
 
 #[allow(unused)]
 impl TryFrom<sled::IVec> for PoolCreatedV4Data {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
         if bytes.len() != 20 + 20 + 4 + 4 + 20 + 32 {
-            return Err(());
+            return Err(ServerError::MissMatchByte {
+                expected: 20 + 20 + 4 + 4 + 20 + 32,
+                returned: bytes.len(),
+            });
         }
         let token0 = Address::from_slice(&bytes[0..20]);
         let token1 = Address::from_slice(&bytes[20..40]);
-        let fee = u32::from_be_bytes(bytes[40..44].try_into().map_err(|_| ())?);
-        let tick_spacing = i32::from_be_bytes(bytes[44..48].try_into().map_err(|_| ())?);
+        let fee = u32::from_be_bytes(bytes[40..44].try_into().unwrap());
+        let tick_spacing = i32::from_be_bytes(bytes[44..48].try_into().unwrap());
         let hooks = Address::from_slice(&bytes[48..68]);
         let mut pool_id = [0u8; 32];
         pool_id.copy_from_slice(&bytes[68..100]);
@@ -360,10 +373,12 @@ impl From<&PairEvent> for Vec<u8> {
 }
 
 impl TryFrom<&[u8]> for PairEvent {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let (&tag, rest) = bytes.split_first().ok_or(())?;
+        let (&tag, rest) = bytes.split_first().ok_or_else(|| {
+            ServerError::Unknown("Bytes cannot be split for pair event".to_string())
+        })?;
         let version = UniswapVersion::from(tag);
         let data = rest.to_vec();
         match version {
@@ -396,7 +411,7 @@ impl From<PairEvent> for sled::IVec {
 }
 
 impl TryFrom<sled::IVec> for PairEvent {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         PairEvent::try_from(value.as_ref())
@@ -495,7 +510,7 @@ impl From<ResolvedPairEvent> for Vec<u8> {
 }
 
 impl TryFrom<&[u8]> for ResolvedPairEvent {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let (event, rest) = decode_pair_event(bytes)?;
@@ -510,8 +525,10 @@ impl TryFrom<&[u8]> for ResolvedPairEvent {
 
 /// Decodes a [`PairEvent`] from the front of `bytes`, returning the event and
 /// the remaining unparsed bytes.
-fn decode_pair_event(bytes: &[u8]) -> Result<(PairEvent, &[u8]), ()> {
-    let (&tag, rest) = bytes.split_first().ok_or(())?;
+fn decode_pair_event(bytes: &[u8]) -> Result<(PairEvent, &[u8]), ServerError> {
+    let (&tag, rest) = bytes
+        .split_first()
+        .ok_or_else(|| ServerError::Unknown("Bytes cannot be split for pair event".to_string()))?;
     let version = UniswapVersion::from(tag);
     let data_len = match version {
         UniswapVersion::V1 => 20 + 20,
@@ -520,7 +537,10 @@ fn decode_pair_event(bytes: &[u8]) -> Result<(PairEvent, &[u8]), ()> {
         UniswapVersion::V4 => 20 + 20 + 4 + 4 + 20 + 32,
     };
     if rest.len() < data_len {
-        return Err(());
+        return Err(ServerError::MissMatchByte {
+            expected: data_len,
+            returned: rest.len(),
+        });
     }
     let (data, remaining) = rest.split_at(data_len);
     let data = sled::IVec::from(data.to_vec());
@@ -534,27 +554,36 @@ fn decode_pair_event(bytes: &[u8]) -> Result<(PairEvent, &[u8]), ()> {
 }
 
 /// Decodes the two length-prefixed optional [`Token`]s (token0 then token1).
-fn decode_optional_tokens(bytes: &[u8]) -> Result<(Option<Token>, Option<Token>), ()> {
+fn decode_optional_tokens(bytes: &[u8]) -> Result<(Option<Token>, Option<Token>), ServerError> {
     let (token0, rest) = decode_optional_token(bytes)?;
     let (token1, rest) = decode_optional_token(rest)?;
     if !rest.is_empty() {
-        return Err(());
+        return Err(ServerError::Unknown(
+            "Trailing bytes after resolved pair event".to_string(),
+        ));
     }
     Ok((token0, token1))
 }
 
-fn decode_optional_token(bytes: &[u8]) -> Result<(Option<Token>, &[u8]), ()> {
-    let (&present, rest) = bytes.split_first().ok_or(())?;
+fn decode_optional_token(bytes: &[u8]) -> Result<(Option<Token>, &[u8]), ServerError> {
+    let (&present, rest) = bytes.split_first().ok_or_else(|| {
+        ServerError::Unknown("Bytes cannot be split for optional token".to_string())
+    })?;
     match present {
         0 => Ok((None, rest)),
         1 => {
             if rest.len() < Token::ENCODED_LEN {
-                return Err(());
+                return Err(ServerError::MissMatchByte {
+                    expected: Token::ENCODED_LEN,
+                    returned: rest.len(),
+                });
             }
             let (data, remaining) = rest.split_at(Token::ENCODED_LEN);
             Ok((Some(Token::decode_from(data)), remaining))
         }
-        _ => Err(()),
+        _ => Err(ServerError::Unknown(format!(
+            "Invalid token presence byte: {present}"
+        ))),
     }
 }
 
@@ -574,7 +603,7 @@ impl From<&ResolvedPairEvent> for sled::IVec {
 
 #[allow(unused)]
 impl TryFrom<sled::IVec> for ResolvedPairEvent {
-    type Error = ();
+    type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         ResolvedPairEvent::try_from(value.as_ref())

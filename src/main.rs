@@ -1,6 +1,7 @@
 use alloy::providers::ProviderBuilder;
 
 mod block_listener;
+mod error;
 mod types;
 
 #[tokio::main]
