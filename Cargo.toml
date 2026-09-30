@@ -3,6 +3,10 @@ name = "price-indexer"
 version = "0.1.0"
 edition = "2024"
 
+[profile.dev]
+incremental = true
+debug = 1
+
 [dependencies]
 alloy = { version = "2.5.0", features = ["full"] }
 axum = "0.8.9"
