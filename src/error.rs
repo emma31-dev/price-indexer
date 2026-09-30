@@ -7,7 +7,7 @@ pub enum ServerError {
     #[error("ABI decode error: {0}")]
     AbiDecode(#[from] alloy::sol_types::Error),
     #[error("alloy RPC error: {0}")]
-    Provider(#[from] alloy::transports::RpcError<alloy::transports::TransportError>),
+    Provider(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
     #[error("sled database error: {0}")]
     Sled(#[from] sled::Error),
     #[error("Unknown error occured: {0}")]
