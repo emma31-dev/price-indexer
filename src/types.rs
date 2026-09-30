@@ -2,6 +2,19 @@ use crate::error::ServerError;
 use alloy::primitives::Address;
 use std::collections::HashMap;
 
+/// The number of bytes in an ABI-encoded EVM address (`address` is 20 bytes).
+pub const ADDRESS_LEN: usize = 20;
+/// The number of bytes in an ABI-encoded `uint256` value.
+pub const UINT256_LEN: usize = 32;
+/// The number of bytes in an ABI-encoded `uint24` fee value.
+pub const UINT24_LEN: usize = 4;
+/// The number of bytes in an ABI-encoded `int24` tick spacing value.
+pub const INT24_LEN: usize = 4;
+/// The number of bytes in a Uniswap V4 `PoolId` (`bytes32`).
+pub const POOL_ID_LEN: usize = 32;
+/// The number of bytes used to store a token's decimal count (`uint8`).
+pub const DECIMALS_LEN: usize = 1;
+
 /// Which Uniswap protocol version a pair belongs to.
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,8 +73,9 @@ pub struct Token {
 }
 
 impl Token {
-    /// The fixed-size byte layout of an encoded [`Token`].
-    const ENCODED_LEN: usize = 20 + 1;
+    /// The fixed-size byte layout of an encoded [`Token`]:
+    /// `address` ([`ADDRESS_LEN`]) followed by `decimals` ([`DECIMALS_LEN`]).
+    const ENCODED_LEN: usize = ADDRESS_LEN + DECIMALS_LEN;
 
     fn encode_into(&self, bytes: &mut Vec<u8>) {
         bytes.extend_from_slice(self.address.as_slice());
@@ -69,8 +83,8 @@ impl Token {
     }
 
     fn decode_from(bytes: &[u8]) -> Self {
-        let address = Address::from_slice(&bytes[0..20]);
-        let decimals = bytes[20];
+        let address = Address::from_slice(&bytes[0..ADDRESS_LEN]);
+        let decimals = bytes[ADDRESS_LEN];
         Token { address, decimals }
     }
 }
@@ -79,10 +93,16 @@ impl Token {
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NewExchangeV1Data {
-    /// The token that was listed.
+    /// The token that was listed (an `address`, [`ADDRESS_LEN`] bytes).
     pub token: Address,
-    /// The newly created exchange contract address.
+    /// The newly created exchange contract address (an `address`, [`ADDRESS_LEN`] bytes).
     pub exchange: Address,
+}
+
+#[allow(unused)]
+impl NewExchangeV1Data {
+    /// Encoded size: `token` ([`ADDRESS_LEN`]) + `exchange` ([`ADDRESS_LEN`]).
+    const ENCODED_LEN: usize = ADDRESS_LEN + ADDRESS_LEN;
 }
 
 #[allow(unused)]
@@ -91,14 +111,14 @@ impl TryFrom<sled::IVec> for NewExchangeV1Data {
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
-        if bytes.len() != 20 + 20 {
+        if bytes.len() != Self::ENCODED_LEN {
             return Err(ServerError::MissMatchByte {
-                expected: 40,
+                expected: Self::ENCODED_LEN,
                 returned: bytes.len(),
             });
         }
-        let token = Address::from_slice(&bytes[0..20]);
-        let exchange = Address::from_slice(&bytes[20..40]);
+        let token = Address::from_slice(&bytes[0..ADDRESS_LEN]);
+        let exchange = Address::from_slice(&bytes[ADDRESS_LEN..ADDRESS_LEN + ADDRESS_LEN]);
         Ok(NewExchangeV1Data { token, exchange })
     }
 }
@@ -106,7 +126,7 @@ impl TryFrom<sled::IVec> for NewExchangeV1Data {
 #[allow(unused)]
 impl From<&NewExchangeV1Data> for Vec<u8> {
     fn from(value: &NewExchangeV1Data) -> Self {
-        let mut bytes = Vec::with_capacity(20 + 20);
+        let mut bytes = Vec::with_capacity(NewExchangeV1Data::ENCODED_LEN);
         bytes.extend_from_slice(value.token.as_slice());
         bytes.extend_from_slice(value.exchange.as_slice());
         bytes
@@ -130,11 +150,21 @@ impl From<NewExchangeV1Data> for UniswapVersion {
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PairCreatedV2Data {
+    /// `token0` (an `address`, [`ADDRESS_LEN`] bytes).
     pub token0: Address,
+    /// `token1` (an `address`, [`ADDRESS_LEN`] bytes).
     pub token1: Address,
-    /// The newly created pair contract address.
+    /// The newly created pair contract address (an `address`, [`ADDRESS_LEN`] bytes).
     pub pair: Address,
+    /// `allPairsLength` (a `uint256`, [`UINT256_LEN`] bytes).
     pub all_pairs_length: alloy::primitives::U256,
+}
+
+#[allow(unused)]
+impl PairCreatedV2Data {
+    /// Encoded size: `token0` ([`ADDRESS_LEN`]) + `token1` ([`ADDRESS_LEN`])
+    /// + `pair` ([`ADDRESS_LEN`]) + `all_pairs_length` ([`UINT256_LEN`]).
+    const ENCODED_LEN: usize = ADDRESS_LEN + ADDRESS_LEN + ADDRESS_LEN + UINT256_LEN;
 }
 
 #[allow(unused)]
@@ -143,16 +173,18 @@ impl TryFrom<sled::IVec> for PairCreatedV2Data {
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
-        if bytes.len() != 20 + 20 + 20 + 32 {
+        if bytes.len() != Self::ENCODED_LEN {
             return Err(ServerError::MissMatchByte {
-                expected: 20 + 20 + 20 + 32,
+                expected: Self::ENCODED_LEN,
                 returned: bytes.len(),
             });
         }
-        let token0 = Address::from_slice(&bytes[0..20]);
-        let token1 = Address::from_slice(&bytes[20..40]);
-        let pair = Address::from_slice(&bytes[40..60]);
-        let all_pairs_length = alloy::primitives::U256::from_be_slice(&bytes[60..92]);
+        let token0 = Address::from_slice(&bytes[0..ADDRESS_LEN]);
+        let token1 = Address::from_slice(&bytes[ADDRESS_LEN..2 * ADDRESS_LEN]);
+        let pair = Address::from_slice(&bytes[2 * ADDRESS_LEN..3 * ADDRESS_LEN]);
+        let all_pairs_length = alloy::primitives::U256::from_be_slice(
+            &bytes[3 * ADDRESS_LEN..3 * ADDRESS_LEN + UINT256_LEN],
+        );
         Ok(PairCreatedV2Data {
             token0,
             token1,
@@ -165,11 +197,11 @@ impl TryFrom<sled::IVec> for PairCreatedV2Data {
 #[allow(unused)]
 impl From<&PairCreatedV2Data> for Vec<u8> {
     fn from(value: &PairCreatedV2Data) -> Self {
-        let mut bytes = Vec::with_capacity(20 + 20 + 20 + 32);
+        let mut bytes = Vec::with_capacity(PairCreatedV2Data::ENCODED_LEN);
         bytes.extend_from_slice(value.token0.as_slice());
         bytes.extend_from_slice(value.token1.as_slice());
         bytes.extend_from_slice(value.pair.as_slice());
-        bytes.extend_from_slice(&value.all_pairs_length.to_be_bytes::<32>());
+        bytes.extend_from_slice(&value.all_pairs_length.to_be_bytes::<UINT256_LEN>());
         bytes
     }
 }
@@ -191,13 +223,23 @@ impl From<PairCreatedV2Data> for UniswapVersion {
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PoolCreatedV3Data {
+    /// `token0` (an `address`, [`ADDRESS_LEN`] bytes).
     pub token0: Address,
+    /// `token1` (an `address`, [`ADDRESS_LEN`] bytes).
     pub token1: Address,
-    /// The pool fee, in hundredths of a bip.
+    /// The pool fee, in hundredths of a bip (a `uint24`, [`UINT24_LEN`] bytes).
     pub fee: u32,
+    /// `tickSpacing` (an `int24`, [`INT24_LEN`] bytes).
     pub tick_spacing: i32,
-    /// The newly created pool contract address.
+    /// The newly created pool contract address (an `address`, [`ADDRESS_LEN`] bytes).
     pub pool: Address,
+}
+
+#[allow(unused)]
+impl PoolCreatedV3Data {
+    /// Encoded size: `token0` ([`ADDRESS_LEN`]) + `token1` ([`ADDRESS_LEN`])
+    /// + `fee` ([`UINT24_LEN`]) + `tick_spacing` ([`INT24_LEN`]) + `pool` ([`ADDRESS_LEN`]).
+    const ENCODED_LEN: usize = ADDRESS_LEN + ADDRESS_LEN + UINT24_LEN + INT24_LEN + ADDRESS_LEN;
 }
 
 #[allow(unused)]
@@ -206,17 +248,27 @@ impl TryFrom<sled::IVec> for PoolCreatedV3Data {
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
-        if bytes.len() != 20 + 20 + 4 + 4 + 20 {
+        if bytes.len() != Self::ENCODED_LEN {
             return Err(ServerError::MissMatchByte {
-                expected: 20 + 20 + 4 + 4 + 20,
+                expected: Self::ENCODED_LEN,
                 returned: bytes.len(),
             });
         }
-        let token0 = Address::from_slice(&bytes[0..20]);
-        let token1 = Address::from_slice(&bytes[20..40]);
-        let fee = u32::from_be_bytes(bytes[40..44].try_into().unwrap());
-        let tick_spacing = i32::from_be_bytes(bytes[44..48].try_into().unwrap());
-        let pool = Address::from_slice(&bytes[48..68]);
+        let token0 = Address::from_slice(&bytes[0..ADDRESS_LEN]);
+        let token1 = Address::from_slice(&bytes[ADDRESS_LEN..2 * ADDRESS_LEN]);
+        let fee = u32::from_be_bytes(
+            bytes[2 * ADDRESS_LEN..2 * ADDRESS_LEN + UINT24_LEN]
+                .try_into()
+                .unwrap(),
+        );
+        let tick_spacing = i32::from_be_bytes(
+            bytes[2 * ADDRESS_LEN + UINT24_LEN..2 * ADDRESS_LEN + UINT24_LEN + INT24_LEN]
+                .try_into()
+                .unwrap(),
+        );
+        let pool = Address::from_slice(
+            &bytes[2 * ADDRESS_LEN + UINT24_LEN + INT24_LEN..Self::ENCODED_LEN],
+        );
         Ok(PoolCreatedV3Data {
             token0,
             token1,
@@ -230,7 +282,7 @@ impl TryFrom<sled::IVec> for PoolCreatedV3Data {
 #[allow(unused)]
 impl From<&PoolCreatedV3Data> for Vec<u8> {
     fn from(value: &PoolCreatedV3Data) -> Self {
-        let mut bytes = Vec::with_capacity(20 + 20 + 4 + 4 + 20);
+        let mut bytes = Vec::with_capacity(PoolCreatedV3Data::ENCODED_LEN);
         bytes.extend_from_slice(value.token0.as_slice());
         bytes.extend_from_slice(value.token1.as_slice());
         bytes.extend_from_slice(&value.fee.to_be_bytes());
@@ -258,14 +310,27 @@ impl From<PoolCreatedV3Data> for UniswapVersion {
 #[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PoolCreatedV4Data {
+    /// `token0` (an `address`, [`ADDRESS_LEN`] bytes).
     pub token0: Address,
+    /// `token1` (an `address`, [`ADDRESS_LEN`] bytes).
     pub token1: Address,
-    /// The pool fee, in hundredths of a bip.
+    /// The pool fee, in hundredths of a bip (a `uint24`, [`UINT24_LEN`] bytes).
     pub fee: u32,
+    /// `tickSpacing` (an `int24`, [`INT24_LEN`] bytes).
     pub tick_spacing: i32,
-    /// The hooks contract address.
+    /// The hooks contract address (an `address`, [`ADDRESS_LEN`] bytes).
     pub hooks: Address,
+    /// The pool identifier (a `bytes32`, [`POOL_ID_LEN`] bytes).
     pub pool_id: [u8; 32],
+}
+
+#[allow(unused)]
+impl PoolCreatedV4Data {
+    /// Encoded size: `token0` ([`ADDRESS_LEN`]) + `token1` ([`ADDRESS_LEN`])
+    /// + `fee` ([`UINT24_LEN`]) + `tick_spacing` ([`INT24_LEN`])
+    /// + `hooks` ([`ADDRESS_LEN`]) + `pool_id` ([`POOL_ID_LEN`]).
+    const ENCODED_LEN: usize =
+        ADDRESS_LEN + ADDRESS_LEN + UINT24_LEN + INT24_LEN + ADDRESS_LEN + POOL_ID_LEN;
 }
 
 #[allow(unused)]
@@ -274,19 +339,32 @@ impl TryFrom<sled::IVec> for PoolCreatedV4Data {
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
         let bytes: &[u8] = value.as_ref();
-        if bytes.len() != 20 + 20 + 4 + 4 + 20 + 32 {
+        if bytes.len() != Self::ENCODED_LEN {
             return Err(ServerError::MissMatchByte {
-                expected: 20 + 20 + 4 + 4 + 20 + 32,
+                expected: Self::ENCODED_LEN,
                 returned: bytes.len(),
             });
         }
-        let token0 = Address::from_slice(&bytes[0..20]);
-        let token1 = Address::from_slice(&bytes[20..40]);
-        let fee = u32::from_be_bytes(bytes[40..44].try_into().unwrap());
-        let tick_spacing = i32::from_be_bytes(bytes[44..48].try_into().unwrap());
-        let hooks = Address::from_slice(&bytes[48..68]);
+        let token0 = Address::from_slice(&bytes[0..ADDRESS_LEN]);
+        let token1 = Address::from_slice(&bytes[ADDRESS_LEN..2 * ADDRESS_LEN]);
+        let fee = u32::from_be_bytes(
+            bytes[2 * ADDRESS_LEN..2 * ADDRESS_LEN + UINT24_LEN]
+                .try_into()
+                .unwrap(),
+        );
+        let tick_spacing = i32::from_be_bytes(
+            bytes[2 * ADDRESS_LEN + UINT24_LEN..2 * ADDRESS_LEN + UINT24_LEN + INT24_LEN]
+                .try_into()
+                .unwrap(),
+        );
+        let hooks = Address::from_slice(
+            &bytes[2 * ADDRESS_LEN + UINT24_LEN + INT24_LEN
+                ..2 * ADDRESS_LEN + UINT24_LEN + INT24_LEN + ADDRESS_LEN],
+        );
         let mut pool_id = [0u8; 32];
-        pool_id.copy_from_slice(&bytes[68..100]);
+        pool_id.copy_from_slice(
+            &bytes[2 * ADDRESS_LEN + UINT24_LEN + INT24_LEN + ADDRESS_LEN..Self::ENCODED_LEN],
+        );
         Ok(PoolCreatedV4Data {
             token0,
             token1,
@@ -301,7 +379,7 @@ impl TryFrom<sled::IVec> for PoolCreatedV4Data {
 #[allow(unused)]
 impl From<&PoolCreatedV4Data> for Vec<u8> {
     fn from(value: &PoolCreatedV4Data) -> Self {
-        let mut bytes = Vec::with_capacity(20 + 20 + 4 + 4 + 20 + 32);
+        let mut bytes = Vec::with_capacity(PoolCreatedV4Data::ENCODED_LEN);
         bytes.extend_from_slice(value.token0.as_slice());
         bytes.extend_from_slice(value.token1.as_slice());
         bytes.extend_from_slice(&value.fee.to_be_bytes());
@@ -455,8 +533,8 @@ impl AsPairId for PoolCreatedV4Data {
     fn pair_id(&self) -> PairId {
         // The v4 pool is identified by its `PoolId`; the address of the pool
         // manager is not the pair itself, so use the truncated pool id here.
-        let mut pair_address = [0u8; 20];
-        pair_address.copy_from_slice(&self.pool_id[0..20]);
+        let mut pair_address = [0u8; ADDRESS_LEN];
+        pair_address.copy_from_slice(&self.pool_id[0..ADDRESS_LEN]);
         PairId {
             version: UniswapVersion::V4,
             pair_address: Address::from_slice(&pair_address),
@@ -531,10 +609,10 @@ fn decode_pair_event(bytes: &[u8]) -> Result<(PairEvent, &[u8]), ServerError> {
         .ok_or_else(|| ServerError::Unknown("Bytes cannot be split for pair event".to_string()))?;
     let version = UniswapVersion::from(tag);
     let data_len = match version {
-        UniswapVersion::V1 => 20 + 20,
-        UniswapVersion::V2 => 20 + 20 + 20 + 32,
-        UniswapVersion::V3 => 20 + 20 + 4 + 4 + 20,
-        UniswapVersion::V4 => 20 + 20 + 4 + 4 + 20 + 32,
+        UniswapVersion::V1 => NewExchangeV1Data::ENCODED_LEN,
+        UniswapVersion::V2 => PairCreatedV2Data::ENCODED_LEN,
+        UniswapVersion::V3 => PoolCreatedV3Data::ENCODED_LEN,
+        UniswapVersion::V4 => PoolCreatedV4Data::ENCODED_LEN,
     };
     if rest.len() < data_len {
         return Err(ServerError::MissMatchByte {
