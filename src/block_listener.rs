@@ -56,6 +56,14 @@ sol! {
 /// Resolves a token's decimals by calling `decimals()` on the token contract.
 /// Returns `None` if the call fails.
 async fn resolve_token(provider: &impl Provider, address: Address) -> Option<Token> {
+    if address == Address::ZERO {
+        return Some(Token {
+            address: Address::ZERO,
+            decimals: 18,
+            name: "Etheruem".into(),
+            symbol: "ETH".into(),
+        });
+    }
     let contract = IERC20::new(address, &provider);
     let decimals = contract.decimals().call().await.ok()?;
     let name = contract.name().call().await.ok()?;
