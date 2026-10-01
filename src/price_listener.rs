@@ -9,7 +9,7 @@ use alloy::{
     sol,
     sol_types::{SolEvent, SolEventInterface},
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sled::Db;
