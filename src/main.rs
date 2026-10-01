@@ -10,7 +10,7 @@ mod types;
 async fn main() {
     let sled_db = sled::open("uniswap_pairs.sled").unwrap();
     let provider = &ProviderBuilder::new()
-        .connect("http://127.0.0.1:8485")
+        .connect("http://127.0.0.1:8584")
         .await
         .unwrap();
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
