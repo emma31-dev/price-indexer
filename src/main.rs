@@ -3,6 +3,7 @@ use alloy::providers::ProviderBuilder;
 mod block_listener;
 mod error;
 mod handlers;
+mod price_listener;
 mod routes;
 mod types;
 

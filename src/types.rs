@@ -317,16 +317,9 @@ pub type TrackedPairs = HashMap<PairId, PairEvent>;
 #[allow(unused)]
 pub type PairsByToken = HashMap<Address, Vec<PairId>>;
 
-/// A single observed price for a pair.
-#[allow(unused)]
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct TokenPrice {
-    pub pair_id: PairId,
-    /// Unix timestamp (seconds) at which the price was observed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TokenPairId {
+    pub version: UniswapVersion,
+    pub pair_address: Address,
     pub timestamp: u64,
-    pub price: f64,
 }
-
-/// Historical price data keyed by the pair it belongs to.
-#[allow(unused)]
-pub type TokenPrices = HashMap<PairId, Vec<TokenPrice>>;
