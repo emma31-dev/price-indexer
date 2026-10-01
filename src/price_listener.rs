@@ -155,12 +155,12 @@ sol! {
     // V4 also emits ERC20-style Transfer / Approval via the PoolManager's ERC6909.
 }
 
-pub async fn price_listener(db: Db, provider: impl Provider) -> Result<(), ServerError> {
+pub async fn price_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
     futures::try_join!(
-        uniswap_v1_listener(db.clone(), &provider),
-        uniswap_v2_listener(db.clone(), &provider),
-        uniswap_v3_listener(db.clone(), &provider),
-        uniswap_v4_listener(db.clone(), &provider),
+        uniswap_v1_listener(db.clone(), provider),
+        uniswap_v2_listener(db.clone(), provider),
+        uniswap_v3_listener(db.clone(), provider),
+        uniswap_v4_listener(db.clone(), provider),
     )?;
     Ok(())
 }

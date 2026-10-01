@@ -20,6 +20,7 @@ async fn main() {
         crate::block_listener::v2_listener(&provider, sled_db.clone()),
         crate::block_listener::v3_listener(&provider, sled_db.clone()),
         crate::block_listener::v4_listener(&provider, sled_db.clone()),
+        crate::price_listener::price_listener(sled_db.clone(), &provider),
         axum::serve(listener, crate::routes::app(sled_db.clone()))
     )
     .unwrap();
