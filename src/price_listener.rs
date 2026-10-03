@@ -277,16 +277,6 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
     while let Some(log) = stream.next().await {
         let address = log.address();
 
-        // `Sync` is the authoritative reserve snapshot.
-        if V2Swap::decode_log(&log.inner).is_ok()
-            || V2Mint::decode_log(&log.inner).is_ok()
-            || V2Burn::decode_log(&log.inner).is_ok()
-        {
-            // These events move reserves, but the follow-up `Sync` (emitted in
-            // the same transaction) will record the new snapshot. Nothing to do
-            // here beyond keeping the stream alive until the `Sync` arrives.
-            continue;
-        }
         if let Ok(ev) = Sync::decode_log(&log.inner) {
             let reserve0 = u112_to_f64(ev.reserve0);
             let reserve1 = u112_to_f64(ev.reserve1);
