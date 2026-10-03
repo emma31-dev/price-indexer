@@ -31,7 +31,7 @@ fn price_at(
     let start = TokenPairId {
         pair_address: pair_address.clone(),
         version: version.clone(),
-        timestamp: from_timestamp.saturating_sub(5),
+        timestamp: from_timestamp.saturating_add(1),
     };
     let end = TokenPairId {
         pair_address: pair_address.to_string(),
