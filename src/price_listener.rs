@@ -239,7 +239,7 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = price.to_le_bytes();
+            let value = Some(price);
             db.insert(id, value)?;
         }
 
@@ -304,7 +304,7 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = price.to_le_bytes();
+            let value = Some(price);
             db.insert(id, value)?;
         }
 
@@ -370,7 +370,7 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = price.to_le_bytes();
+            let value = Some(price);
             db.insert(id, value)?;
         }
 
@@ -434,7 +434,7 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = price.to_le_bytes();
+            let value = Some(price);
             db.insert(id, value)?;
         }
 

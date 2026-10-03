@@ -43,7 +43,7 @@ fn price_at(
 
     match db.range(range).next_back() {
         Some(Ok((key, value))) => {
-            let price = match bincode::deserialize::<f64>(&value) {
+            let price = match bincode::deserialize::<Option<f64>>(&value) {
                 Ok(p) => p,
                 Err(_) => {
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
@@ -92,7 +92,7 @@ pub async fn prices_range_handler(
     for item in db.range(start..end) {
         match item {
             Ok((key, value)) => {
-                let price = match bincode::deserialize::<f64>(&value) {
+                let price = match bincode::deserialize::<Option<f64>>(&value) {
                     Ok(p) => p,
                     Err(_) => {
                         return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")

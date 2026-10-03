@@ -122,7 +122,7 @@ pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 }),
             };
 
-            let value = 0.0;
+            let value: Option<f64> = None;
             sled_db.insert(id, value)?;
         }
     }
@@ -177,7 +177,7 @@ pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 }),
             };
 
-            let value = 0.0;
+            let value: Option<f64> = None;
             sled_db.insert(id, value)?;
         }
     }
@@ -233,7 +233,7 @@ pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 }),
             };
 
-            let value = 0.0;
+            let value: Option<f64> = None;
             sled_db.insert(id, value)?;
         }
     }
@@ -290,7 +290,7 @@ pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 }),
             };
 
-            let value = 0.0;
+            let value: Option<f64> = None;
             sled_db.insert(id, value)?;
         }
     }

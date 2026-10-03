@@ -367,13 +367,13 @@ pub struct PricesRangeRequest {
 
 #[derive(Serialize)]
 pub struct PriceResponse {
-    pub price: f64,
+    pub price: Option<f64>,
     pub last_updated: u64,
 }
 
 #[derive(Serialize)]
 pub struct TimestampedPrice {
-    pub price: f64,
+    pub price: Option<f64>,
     pub timestamp: u64,
 }
 
