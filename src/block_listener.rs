@@ -5,6 +5,7 @@ use alloy::providers::Provider;
 use alloy::rpc::types::Filter;
 use alloy::sol;
 use alloy::sol_types::SolEvent;
+use chrono::Utc;
 use futures::StreamExt;
 use sled::Db;
 
@@ -106,6 +107,22 @@ pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
             token1: None,
         };
         sled_db.insert(id, resolved).unwrap();
+
+        // Store the pool price at this moment as 0.0.
+        let id = TokenPairId {
+            version: UniswapVersion::V1,
+            pair_address: PairAddress::Address(ev.address),
+            timestamp: log.block_timestamp.unwrap_or_else(|| {
+                println!(
+                    "skipping tick: block {} has no timestamp",
+                    log.block_number.unwrap_or_default()
+                );
+                Utc::now().timestamp() as u64
+            }),
+        };
+
+        let value = 0.0;
+        sled_db.insert(id, value)?;
     }
 
     let mut stream = provider
@@ -128,6 +145,22 @@ pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token1: None,
             };
             sled_db.insert(id, resolved).unwrap();
+
+            // Store the pool price at this moment as 0.0.
+            let id = TokenPairId {
+                version: UniswapVersion::V1,
+                pair_address: PairAddress::Address(data.address),
+                timestamp: log.block_timestamp.unwrap_or_else(|| {
+                    println!(
+                        "skipping tick: block {} has no timestamp",
+                        log.block_number.unwrap_or_default()
+                    );
+                    Utc::now().timestamp() as u64
+                }),
+            };
+
+            let value = 0.0;
+            sled_db.insert(id, value)?;
         }
     }
 
@@ -167,6 +200,22 @@ pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
             token1,
         };
         sled_db.insert(id, resolved).unwrap();
+
+        // Store the pool price at this moment as 0.0.
+        let id = TokenPairId {
+            version: UniswapVersion::V2,
+            pair_address: PairAddress::Address(ev.pair),
+            timestamp: log.block_timestamp.unwrap_or_else(|| {
+                println!(
+                    "skipping tick: block {} has no timestamp",
+                    log.block_number.unwrap_or_default()
+                );
+                Utc::now().timestamp() as u64
+            }),
+        };
+
+        let value = 0.0;
+        sled_db.insert(id, value)?;
     }
 
     let mut stream = provider
@@ -191,6 +240,22 @@ pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token1,
             };
             sled_db.insert(id, resolved).unwrap();
+
+            // Store the pool price at this moment as 0.0.
+            let id = TokenPairId {
+                version: UniswapVersion::V2,
+                pair_address: PairAddress::Address(data.pair),
+                timestamp: log.block_timestamp.unwrap_or_else(|| {
+                    println!(
+                        "skipping tick: block {} has no timestamp",
+                        log.block_number.unwrap_or_default()
+                    );
+                    Utc::now().timestamp() as u64
+                }),
+            };
+
+            let value = 0.0;
+            sled_db.insert(id, value)?;
         }
     }
 
@@ -231,6 +296,22 @@ pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
             token1,
         };
         sled_db.insert(id, resolved).unwrap();
+
+        // Store the pool price at this moment as 0.0.
+        let id = TokenPairId {
+            version: UniswapVersion::V3,
+            pair_address: PairAddress::Address(ev.pool),
+            timestamp: log.block_timestamp.unwrap_or_else(|| {
+                println!(
+                    "skipping tick: block {} has no timestamp",
+                    log.block_number.unwrap_or_default()
+                );
+                Utc::now().timestamp() as u64
+            }),
+        };
+
+        let value = 0.0;
+        sled_db.insert(id, value)?;
     }
 
     let mut stream = provider
@@ -256,6 +337,22 @@ pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token1,
             };
             sled_db.insert(id, resolved).unwrap();
+
+            // Store the pool price at this moment as 0.0.
+            let id = TokenPairId {
+                version: UniswapVersion::V3,
+                pair_address: PairAddress::Address(data.pool),
+                timestamp: log.block_timestamp.unwrap_or_else(|| {
+                    println!(
+                        "skipping tick: block {} has no timestamp",
+                        log.block_number.unwrap_or_default()
+                    );
+                    Utc::now().timestamp() as u64
+                }),
+            };
+
+            let value = 0.0;
+            sled_db.insert(id, value)?;
         }
     }
 
@@ -297,6 +394,22 @@ pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
             token1,
         };
         sled_db.insert(id, resolved).unwrap();
+
+        // Store the pool price at this moment as 0.0.
+        let id = TokenPairId {
+            version: UniswapVersion::V4,
+            pair_address: PairAddress::PoolId(ev.poolId.0),
+            timestamp: log.block_timestamp.unwrap_or_else(|| {
+                println!(
+                    "skipping tick: block {} has no timestamp",
+                    log.block_number.unwrap_or_default()
+                );
+                Utc::now().timestamp() as u64
+            }),
+        };
+
+        let value = 0.0;
+        sled_db.insert(id, value)?;
     }
 
     let mut stream = provider
@@ -323,6 +436,22 @@ pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token1,
             };
             sled_db.insert(id, resolved).unwrap();
+
+            // Store the pool price at this moment as 0.0.
+            let id = TokenPairId {
+                version: UniswapVersion::V4,
+                pair_address: PairAddress::PoolId(data.poolId.0),
+                timestamp: log.block_timestamp.unwrap_or_else(|| {
+                    println!(
+                        "skipping tick: block {} has no timestamp",
+                        log.block_number.unwrap_or_default()
+                    );
+                    Utc::now().timestamp() as u64
+                }),
+            };
+
+            let value = 0.0;
+            sled_db.insert(id, value)?;
         }
     }
 
