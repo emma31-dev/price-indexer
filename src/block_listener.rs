@@ -77,7 +77,7 @@ async fn resolve_token(provider: &impl Provider, address: Address) -> Option<Tok
     })
 }
 
-/// V1 listener: fetches `NewExchange` logs for the V1 factory at `block_number`
+/// V1 listener: watches `NewExchange` logs for the V1 factory
 /// and decodes them into `PairEvent`.
 pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V1_FACTORY")
@@ -87,43 +87,6 @@ pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     let filter = Filter::new()
         .address(factory)
         .event_signature(NewExchangeV1::SIGNATURE_HASH);
-
-    let logs = provider.get_logs(&filter).await?;
-
-    for log in logs {
-        let ev = NewExchangeV1::decode_log(&log.inner)?;
-        let data = NewExchangeV1Data {
-            token: ev.token,
-            exchange: ev.address,
-        };
-        let id = data.pair_id();
-        if sled_db.contains_key(id).unwrap() {
-            continue;
-        }
-        let token0 = resolve_token(provider, data.token).await;
-        let resolved = ResolvedPairEvent {
-            event: PairEvent::V1(data),
-            token0,
-            token1: None,
-        };
-        sled_db.insert(id, resolved).unwrap();
-
-        // Store the pool price at this moment as 0.0.
-        let id = TokenPairId {
-            version: UniswapVersion::V1,
-            pair_address: PairAddress::Address(ev.address),
-            timestamp: log.block_timestamp.unwrap_or_else(|| {
-                println!(
-                    "skipping tick: block {} has no timestamp",
-                    log.block_number.unwrap_or_default()
-                );
-                Utc::now().timestamp() as u64
-            }),
-        };
-
-        let value = 0.0;
-        sled_db.insert(id, value)?;
-    }
 
     let mut stream = provider
         .watch_logs(&filter)
@@ -144,7 +107,7 @@ pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token0,
                 token1: None,
             };
-            sled_db.insert(id, resolved).unwrap();
+            sled_db.insert(id, resolved)?;
 
             // Store the pool price at this moment as 0.0.
             let id = TokenPairId {
@@ -167,7 +130,7 @@ pub async fn v1_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     Ok(())
 }
 
-/// V2 listener: fetches `PairCreated` logs for the V2 factory at `block_number`
+/// V2 listener: watches `PairCreated` logs for the V2 factory
 /// and decodes them into `PairEvent`.
 pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V2_FACTORY")
@@ -177,46 +140,6 @@ pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     let filter = Filter::new()
         .address(factory)
         .event_signature(PairCreatedV2::SIGNATURE_HASH);
-
-    let logs = provider.get_logs(&filter).await?;
-
-    for log in logs {
-        let ev = PairCreatedV2::decode_log(&log.inner)?;
-        let data = PairCreatedV2Data {
-            token0: ev.token0,
-            token1: ev.token1,
-            pair: ev.pair,
-            all_pairs_length: ev.allPairsLength,
-        };
-        let id = data.pair_id();
-        if sled_db.contains_key(id).unwrap() {
-            continue;
-        }
-        let token0 = resolve_token(provider, data.token0).await;
-        let token1 = resolve_token(provider, data.token1).await;
-        let resolved = ResolvedPairEvent {
-            event: PairEvent::V2(data),
-            token0,
-            token1,
-        };
-        sled_db.insert(id, resolved).unwrap();
-
-        // Store the pool price at this moment as 0.0.
-        let id = TokenPairId {
-            version: UniswapVersion::V2,
-            pair_address: PairAddress::Address(ev.pair),
-            timestamp: log.block_timestamp.unwrap_or_else(|| {
-                println!(
-                    "skipping tick: block {} has no timestamp",
-                    log.block_number.unwrap_or_default()
-                );
-                Utc::now().timestamp() as u64
-            }),
-        };
-
-        let value = 0.0;
-        sled_db.insert(id, value)?;
-    }
 
     let mut stream = provider
         .watch_logs(&filter)
@@ -239,7 +162,7 @@ pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token0,
                 token1,
             };
-            sled_db.insert(id, resolved).unwrap();
+            sled_db.insert(id, resolved)?;
 
             // Store the pool price at this moment as 0.0.
             let id = TokenPairId {
@@ -262,7 +185,7 @@ pub async fn v2_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     Ok(())
 }
 
-/// V3 listener: fetches `PoolCreated` logs for the V3 factory at `block_number`
+/// V3 listener: watches `PoolCreated` logs for the V3 factory
 /// and decodes them into `PairEvent`.
 pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V3_FACTORY")
@@ -272,47 +195,6 @@ pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     let filter = Filter::new()
         .address(factory)
         .event_signature(PoolCreatedV3::SIGNATURE_HASH);
-
-    let logs = provider.get_logs(&filter).await?;
-
-    for log in logs {
-        let ev = PoolCreatedV3::decode_log(&log.inner)?;
-        let data = PoolCreatedV3Data {
-            token0: ev.token0,
-            token1: ev.token1,
-            fee: ev.fee.to(),
-            tick_spacing: ev.tickSpacing.low_i32(),
-            pool: ev.pool,
-        };
-        let id = data.pair_id();
-        if sled_db.contains_key(id).unwrap() {
-            continue;
-        }
-        let token0 = resolve_token(provider, data.token0).await;
-        let token1 = resolve_token(provider, data.token1).await;
-        let resolved = ResolvedPairEvent {
-            event: PairEvent::V3(data),
-            token0,
-            token1,
-        };
-        sled_db.insert(id, resolved).unwrap();
-
-        // Store the pool price at this moment as 0.0.
-        let id = TokenPairId {
-            version: UniswapVersion::V3,
-            pair_address: PairAddress::Address(ev.pool),
-            timestamp: log.block_timestamp.unwrap_or_else(|| {
-                println!(
-                    "skipping tick: block {} has no timestamp",
-                    log.block_number.unwrap_or_default()
-                );
-                Utc::now().timestamp() as u64
-            }),
-        };
-
-        let value = 0.0;
-        sled_db.insert(id, value)?;
-    }
 
     let mut stream = provider
         .watch_logs(&filter)
@@ -336,7 +218,7 @@ pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token0,
                 token1,
             };
-            sled_db.insert(id, resolved).unwrap();
+            sled_db.insert(id, resolved)?;
 
             // Store the pool price at this moment as 0.0.
             let id = TokenPairId {
@@ -359,7 +241,7 @@ pub async fn v3_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     Ok(())
 }
 
-/// V4 listener: fetches `PoolCreated` logs for the V4 factory at `block_number`
+/// V4 listener: watches `PoolCreated` logs for the V4 factory
 /// and decodes them into `PairEvent`.
 pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), ServerError> {
     let factory: Address = std::env::var("UNISWAP_V4_FACTORY")
@@ -369,48 +251,6 @@ pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
     let filter = Filter::new()
         .address(factory)
         .event_signature(PoolCreatedV4::SIGNATURE_HASH);
-
-    let logs = provider.get_logs(&filter).await?;
-
-    for log in logs {
-        let ev = PoolCreatedV4::decode_log(&log.inner)?;
-        let data = PoolCreatedV4Data {
-            token0: ev.token0,
-            token1: ev.token1,
-            fee: ev.fee.to(),
-            tick_spacing: ev.tickSpacing.low_i32(),
-            hooks: ev.hooks,
-            pool_id: ev.poolId.0,
-        };
-        let id = data.pair_id();
-        if sled_db.contains_key(id).unwrap() {
-            continue;
-        }
-        let token0 = resolve_token(provider, data.token0).await;
-        let token1 = resolve_token(provider, data.token1).await;
-        let resolved = ResolvedPairEvent {
-            event: PairEvent::V4(data),
-            token0,
-            token1,
-        };
-        sled_db.insert(id, resolved).unwrap();
-
-        // Store the pool price at this moment as 0.0.
-        let id = TokenPairId {
-            version: UniswapVersion::V4,
-            pair_address: PairAddress::PoolId(ev.poolId.0),
-            timestamp: log.block_timestamp.unwrap_or_else(|| {
-                println!(
-                    "skipping tick: block {} has no timestamp",
-                    log.block_number.unwrap_or_default()
-                );
-                Utc::now().timestamp() as u64
-            }),
-        };
-
-        let value = 0.0;
-        sled_db.insert(id, value)?;
-    }
 
     let mut stream = provider
         .watch_logs(&filter)
@@ -435,7 +275,7 @@ pub async fn v4_listener(provider: &impl Provider, sled_db: Db) -> Result<(), Se
                 token0,
                 token1,
             };
-            sled_db.insert(id, resolved).unwrap();
+            sled_db.insert(id, resolved)?;
 
             // Store the pool price at this moment as 0.0.
             let id = TokenPairId {
