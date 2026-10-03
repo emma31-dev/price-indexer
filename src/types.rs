@@ -343,15 +343,41 @@ pub struct TokenPairId {
     pub timestamp: u64,
 }
 
-// ============ Request Types ==============
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+// ============ Request & Response Types ==============
+#[derive(serde::Deserialize)]
 pub struct PriceRequest {
     pub pair_address: PairAddress,
     pub version: UniswapVersion,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(serde::Deserialize)]
+pub struct PriceAtRequest {
+    pub pair_address: PairAddress,
+    pub version: UniswapVersion,
+    pub timestamp: u64,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PricesRangeRequest {
+    pub pair_address: PairAddress,
+    pub version: UniswapVersion,
+    pub start_timestamp: u64,
+    pub end_timestamp: u64,
+}
+
+#[derive(Serialize)]
 pub struct PriceResponse {
     pub price: f64,
     pub last_updated: u64,
+}
+
+#[derive(Serialize)]
+pub struct TimestampedPrice {
+    pub price: f64,
+    pub timestamp: u64,
+}
+
+#[derive(Serialize)]
+pub struct PricesRangeResponse {
+    pub prices: Vec<TimestampedPrice>,
 }
