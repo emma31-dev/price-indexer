@@ -10,6 +10,8 @@ pub enum ServerError {
     Provider(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
     #[error("sled database error: {0}")]
     Sled(#[from] sled::Error),
+    #[error("bincode error: {0}")]
+    Bincode(#[from] bincode::Error),
     #[error("Unknown error occured: {0}")]
     Unknown(String),
 }
