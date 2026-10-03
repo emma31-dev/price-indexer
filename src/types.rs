@@ -342,3 +342,16 @@ pub struct TokenPairId {
     pub pair_address: PairAddress,
     pub timestamp: u64,
 }
+
+// ============ Request Types ==============
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriceRequest {
+    pub pair_address: PairAddress,
+    pub version: UniswapVersion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PriceResponse {
+    pub price: f64,
+    pub last_updated: u64,
+}
