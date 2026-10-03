@@ -12,8 +12,6 @@ fn eth_router(sled_db: Db) -> Router {
         .route("/latest_price", get(price_handler))
         .route("/price", get(price_at_handler))
         .route("/prices", get(prices_range_handler))
-        // .route("/prices/latest", get(latest_price_handler))
-        // .route("/price/history", get(price_history_handler))
         // .route("/ohlc", get(ohlc_handler))
         // .route("/candles", get(candles_handler))
         // .route("/chart", get(chart_handler))
