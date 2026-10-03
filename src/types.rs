@@ -99,14 +99,14 @@ impl TryFrom<sled::IVec> for NewExchangeV1Data {
     type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
-        bincode::deserialize(value.as_ref()).map_err(ServerError::from)
+        bincode::deserialize(value.as_ref())
     }
 }
 
 #[allow(unused)]
 impl From<NewExchangeV1Data> for sled::IVec {
     fn from(value: NewExchangeV1Data) -> Self {
-        sled::IVec::from(bincode::serialize(&value).unwrap_or_default())
+        sled::IVec::from(bincode::serialize(&value)?)
     }
 }
 
@@ -129,14 +129,14 @@ impl TryFrom<sled::IVec> for PairCreatedV2Data {
     type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
-        bincode::deserialize(value.as_ref()).map_err(ServerError::from)
+        bincode::deserialize(value.as_ref())
     }
 }
 
 #[allow(unused)]
 impl From<PairCreatedV2Data> for sled::IVec {
     fn from(value: PairCreatedV2Data) -> Self {
-        sled::IVec::from(bincode::serialize(&value).unwrap_or_default())
+        sled::IVec::from(bincode::serialize(&value)?)
     }
 }
 
@@ -161,14 +161,14 @@ impl TryFrom<sled::IVec> for PoolCreatedV3Data {
     type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
-        bincode::deserialize(value.as_ref()).map_err(ServerError::from)
+        bincode::deserialize(value.as_ref())
     }
 }
 
 #[allow(unused)]
 impl From<PoolCreatedV3Data> for sled::IVec {
     fn from(value: PoolCreatedV3Data) -> Self {
-        sled::IVec::from(bincode::serialize(&value).unwrap_or_default())
+        sled::IVec::from(bincode::serialize(&value)?)
     }
 }
 
@@ -196,14 +196,14 @@ impl TryFrom<sled::IVec> for PoolCreatedV4Data {
     type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
-        bincode::deserialize(value.as_ref()).map_err(ServerError::from)
+        bincode::deserialize(value.as_ref())
     }
 }
 
 #[allow(unused)]
 impl From<PoolCreatedV4Data> for sled::IVec {
     fn from(value: PoolCreatedV4Data) -> Self {
-        sled::IVec::from(bincode::serialize(&value).unwrap_or_default())
+        sled::IVec::from(bincode::serialize(&value)?)
     }
 }
 
@@ -233,13 +233,13 @@ impl TryFrom<sled::IVec> for PairEvent {
     type Error = ServerError;
 
     fn try_from(value: sled::IVec) -> Result<Self, Self::Error> {
-        bincode::deserialize(value.as_ref()).map_err(ServerError::from)
+        bincode::deserialize(value.as_ref())
     }
 }
 
 impl From<PairEvent> for sled::IVec {
     fn from(value: PairEvent) -> Self {
-        sled::IVec::from(bincode::serialize(&value).unwrap_or_default())
+        sled::IVec::from(bincode::serialize(&value)?)
     }
 }
 
