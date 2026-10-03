@@ -90,28 +90,10 @@ pub async fn prices_range_handler(
 
     let mut prices = Vec::new();
     for item in db.range(start..end) {
-        match item {
-            Ok((key, value)) => {
-                let price = match bincode::deserialize::<Option<f64>>(&value) {
-                    Ok(p) => p,
-                    Err(_) => {
-                        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
-                            .into_response();
-                    }
-                };
-                let timestamp = match bincode::deserialize::<TokenPairId>(&key) {
-                    Ok(k) => k.timestamp,
-                    Err(_) => {
-                        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode key")
-                            .into_response();
-                    }
-                };
-                prices.push(TimestampedPrice { price, timestamp });
-            }
-            Err(_) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
-            }
-        }
+        let (key, value) = item?;
+        let price = bincode::deserialize::<Option<f64>>(&value)?;
+        let timestamp = bincode::deserialize::<TokenPairId>(&key)?.timestamp;
+        prices.push(TimestampedPrice { price, timestamp });
     }
 
     (StatusCode::OK, Json(PricesRangeResponse { prices })).into_response()
