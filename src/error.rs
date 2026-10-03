@@ -1,3 +1,5 @@
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -14,4 +16,21 @@ pub enum ServerError {
     Bincode(#[from] bincode::Error),
     #[error("Unknown error occured: {0}")]
     Unknown(String),
+}
+
+impl IntoResponse for ServerError {
+    fn into_response(self) -> Response {
+        let message = match &self {
+            ServerError::MissMatchByte { expected, returned } => {
+                format!("byte mismatch: expected {expected}, returned {returned}")
+            }
+            ServerError::AbiDecode(_) => "failed to decode ABI data".to_string(),
+            ServerError::Provider(_) => "RPC provider error".to_string(),
+            ServerError::Sled(_) => "database error".to_string(),
+            ServerError::Bincode(_) => "serialization error".to_string(),
+            ServerError::Unknown(msg) => msg.clone(),
+        };
+
+        (StatusCode::INTERNAL_SERVER_ERROR, message).into_response()
+    }
 }
