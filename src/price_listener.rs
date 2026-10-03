@@ -228,7 +228,7 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 
         let id = TokenPairId {
             version: UniswapVersion::V1,
-            pair_address: address,
+            pair_address: PairAddress::Address(address),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
@@ -308,7 +308,7 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 
         let id = TokenPairId {
             version: UniswapVersion::V2,
-            pair_address: address,
+            pair_address: PairAddress::Address(address),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
@@ -374,7 +374,7 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 
         let id = TokenPairId {
             version: UniswapVersion::V3,
-            pair_address: address,
+            pair_address: PairAddress::Address(address),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
@@ -435,11 +435,10 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         // The pool identifier is the indexed `id` (bytes32). We store it in the
         // `pair_address` field by taking the low 20 bytes as an address.
         let pool_id = ev.id;
-        let pair_address = Address::from_slice(&pool_id[12..32]);
 
         let id = TokenPairId {
             version: UniswapVersion::V4,
-            pair_address,
+            pair_address: PairAddress::PoolId(pool_id),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",

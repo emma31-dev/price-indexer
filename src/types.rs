@@ -36,6 +36,28 @@ impl From<UniswapVersion> for u8 {
     }
 }
 
+/// The address/index that identifies a pair within its protocol version.
+///
+/// For Uniswap V1/V2/V3 a pair is identified by a contract address. For
+/// Uniswap V4 a pool is instead identified by its 32-byte `PoolId`.
+#[allow(unused)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PairAddress {
+    /// A 20-byte contract address, used by V1/V2/V3.
+    Address(Address),
+    /// The 32-byte `PoolId`, used by V4.
+    PoolId([u8; 32]),
+}
+
+impl AsRef<[u8]> for PairAddress {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            PairAddress::Address(address) => address.as_ref(),
+            PairAddress::PoolId(pool_id) => pool_id.as_ref(),
+        }
+    }
+}
+
 /// Identifier for a tracked pair, scoped by protocol version.
 ///
 /// Two pools can share the same address across versions in theory, and the same
@@ -44,7 +66,7 @@ impl From<UniswapVersion> for u8 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PairId {
     pub version: UniswapVersion,
-    pub pair_address: Address,
+    pub pair_address: PairAddress,
 }
 
 impl AsRef<[u8]> for PairId {
@@ -231,7 +253,7 @@ impl AsPairId for NewExchangeV1Data {
     fn pair_id(&self) -> PairId {
         PairId {
             version: UniswapVersion::V1,
-            pair_address: self.exchange,
+            pair_address: PairAddress::Address(self.exchange),
         }
     }
 }
@@ -240,7 +262,7 @@ impl AsPairId for PairCreatedV2Data {
     fn pair_id(&self) -> PairId {
         PairId {
             version: UniswapVersion::V2,
-            pair_address: self.pair,
+            pair_address: PairAddress::Address(self.pair),
         }
     }
 }
@@ -249,20 +271,17 @@ impl AsPairId for PoolCreatedV3Data {
     fn pair_id(&self) -> PairId {
         PairId {
             version: UniswapVersion::V3,
-            pair_address: self.pool,
+            pair_address: PairAddress::Address(self.pool),
         }
     }
 }
 
 impl AsPairId for PoolCreatedV4Data {
     fn pair_id(&self) -> PairId {
-        // The v4 pool is identified by its `PoolId`; the address of the pool
-        // manager is not the pair itself, so use the truncated pool id here.
-        let mut pair_address = [0u8; 20];
-        pair_address.copy_from_slice(&self.pool_id[0..20]);
+        // The v4 pool is identified by its full 32-byte `PoolId`.
         PairId {
             version: UniswapVersion::V4,
-            pair_address: Address::from_slice(&pair_address),
+            pair_address: PairAddress::PoolId(self.pool_id),
         }
     }
 }
@@ -320,6 +339,6 @@ pub type PairsByToken = HashMap<Address, Vec<PairId>>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TokenPairId {
     pub version: UniswapVersion,
-    pub pair_address: Address,
+    pub pair_address: PairAddress,
     pub timestamp: u64,
 }
