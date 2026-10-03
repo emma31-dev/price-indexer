@@ -260,12 +260,7 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 /// the authoritative reserve snapshot always comes from `Sync`.
 async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
     // Filter for all V2 pair event signatures across every pair contract.
-    let filter = Filter::new().events(&[
-        V2Swap::SIGNATURE,
-        Sync::SIGNATURE,
-        V2Mint::SIGNATURE,
-        V2Burn::SIGNATURE,
-    ]);
+    let filter = Filter::new().event_signature(Sync::SIGNATURE);
 
     let mut stream = provider
         .watch_logs(&filter)
