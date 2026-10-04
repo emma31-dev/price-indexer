@@ -239,8 +239,7 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = Some(price);
-            db.insert(id, value)?;
+            db.insert(id, price)?;
         }
 
         println!("Stored V1 price for {address:?}: {price}");
@@ -304,8 +303,7 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = Some(price);
-            db.insert(id, value)?;
+            db.insert(id, price)?;
         }
 
         println!("Stored V2 price for {address:?}: {price}");
@@ -370,8 +368,7 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = Some(price);
-            db.insert(id, value)?;
+            db.insert(id, price)?;
         }
 
         println!("Stored V3 price for {address:?}: {price}");
@@ -434,8 +431,7 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         };
 
         if db.get(&id)?.is_none() {
-            let value = Some(price);
-            db.insert(id, value)?;
+            db.insert(id, price)?;
         }
 
         println!("Stored V4 price for {pair_address:?}: {price}");
