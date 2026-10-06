@@ -42,8 +42,9 @@ fn price_at(
 
     match db.range(range).next_back() {
         Some(Ok((key, value))) => {
-            let price = match rkyv::from_bytes::<Option<f64>, rkyv::rancor::Error>(&value) {
-                Ok(p) => p,
+            let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
+                Ok(Some(p)) => Some(p.price),
+                Ok(None) => None,
                 Err(_) => {
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                         .into_response();
@@ -95,8 +96,9 @@ pub async fn prices_range_handler(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
             }
         };
-        let price = match rkyv::from_bytes::<Option<f64>, rkyv::rancor::Error>(&value) {
-            Ok(p) => p,
+        let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
+            Ok(Some(p)) => Some(p.price),
+            Ok(None) => None,
             Err(_) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                     .into_response();
