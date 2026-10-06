@@ -161,8 +161,9 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 /// change, so we can use the reserves directly:
 ///     price = reserve1 / reserve0
 ///
-/// Swap/Mint/Burn events are also observed (they carry the amounts moved), but
-/// the authoritative reserve snapshot always comes from `Sync`.
+/// Swap/Mint/Burn events are also observed (they carry the amounts moved), and
+/// their amounts are accumulated into the running volume that is recorded with
+/// each tick, since volume does change.
 async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
     sol! {
         // ===== Uniswap V2 (Pair) =====
@@ -188,7 +189,12 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
     }
 
     // Filter for all V2 pair event signatures across every pair contract.
-    let filter = Filter::new().event(Sync::SIGNATURE.into());
+    let filter = Filter::new().events(&[
+        Swap::SIGNATURE,
+        Sync::SIGNATURE,
+        Mint::SIGNATURE,
+        Burn::SIGNATURE,
+    ]);
 
     let mut stream = provider
         .watch_logs(&filter)
@@ -196,10 +202,29 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         .into_stream()
         .flat_map(futures::stream::iter);
     let mut reserves: HashMap<Address, (f64, f64)> = HashMap::new();
+    // Running volume per pair, updated from Swap/Mint/Burn events.
+    let mut volumes: HashMap<Address, f64> = HashMap::new();
 
     while let Some(log) = stream.next().await {
         let address = log.address();
 
+        // Track the volume carried by the amount-bearing events. These do not
+        // change the reserves directly, but they do change the volume.
+        if let Ok(ev) = Swap::decode_log(&log.inner) {
+            let swap_volume = u256_to_f64(ev.amount0In)
+                + u256_to_f64(ev.amount1In)
+                + u256_to_f64(ev.amount0Out)
+                + u256_to_f64(ev.amount1Out);
+            *volumes.entry(address).or_insert(0.0) += swap_volume;
+        } else if let Ok(ev) = Mint::decode_log(&log.inner) {
+            let mint_volume = u256_to_f64(ev.amount0) + u256_to_f64(ev.amount1);
+            *volumes.entry(address).or_insert(0.0) += mint_volume;
+        } else if let Ok(ev) = Burn::decode_log(&log.inner) {
+            let burn_volume = u256_to_f64(ev.amount0) + u256_to_f64(ev.amount1);
+            *volumes.entry(address).or_insert(0.0) += burn_volume;
+        }
+
+        // The authoritative reserve snapshot always comes from `Sync`.
         if let Ok(ev) = Sync::decode_log(&log.inner) {
             let reserve0 = u112_to_f64(ev.reserve0);
             let reserve1 = u112_to_f64(ev.reserve1);
@@ -219,9 +244,10 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             0.0
         };
 
-        // `Sync` only communicates reserves, not the moved amount, so the
-        // volume is recorded as zero for these ticks.
-        let volume = 0.0;
+        // Take the accumulated volume for this pair and reset it for the next
+        // tick, since volume changes across swaps.
+        let volume = volumes.get(&address).copied().unwrap_or(0.0);
+        volumes.insert(address, 0.0);
 
         let id = TokenPairId {
             version: UniswapVersion::V2,
