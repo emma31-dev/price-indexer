@@ -9,147 +9,6 @@ use chrono::Utc;
 use futures::StreamExt;
 use sled::Db;
 
-sol! {
-    // ===== Uniswap V1 (Factory + Exchange) =====
-    // V1 had no Swap event; only Mint, Burn, EthPurchase, TokenPurchase.
-    event TokenPurchase(
-        address indexed buyer,
-        uint256 eth_sold,
-        uint256 tokens_bought
-    );
-
-    event EthPurchase(
-        address indexed buyer,
-        uint256 tokens_sold,
-        uint256 eth_bought
-    );
-
-    event AddLiquidity(
-        address indexed provider,
-        uint256 eth_amount,
-        uint256 token_amount
-    );
-
-    event RemoveLiquidity(
-        address indexed provider,
-        uint256 eth_amount,
-        uint256 token_amount
-    );
-
-    event Transfer(
-        address indexed from,
-        address indexed to,
-        uint256 value
-    );
-
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 value
-    );
-
-    // ===== Uniswap V2 (Pair) =====
-    #[sol(rename = "V2Swap")]
-    event Swap(
-        address indexed sender,
-        uint256 amount0In,
-        uint256 amount1In,
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address indexed to
-    );
-
-    event Sync(uint112 reserve0, uint112 reserve1);
-
-    #[sol(rename = "V2Mint")]
-    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
-
-    #[sol(rename = "V2Burn")]
-    event Burn(
-        address indexed sender,
-        uint256 amount0,
-        uint256 amount1,
-        address indexed to
-    );
-
-    // ===== Uniswap V3 (Pool) =====
-    #[sol(rename = "V3Swap")]
-    event Swap(
-        address indexed sender,
-        address indexed recipient,
-        int256 amount0,
-        int256 amount1,
-        uint160 sqrtPriceX96,
-        uint128 liquidity,
-        int24 tick
-    );
-
-    #[sol(rename = "V3Mint")]
-    event Mint(
-        address sender,
-        address indexed owner,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount,
-        uint256 amount0,
-        uint256 amount1
-    );
-
-    #[sol(rename = "V3Burn")]
-    event Burn(
-        address indexed owner,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount,
-        uint256 amount0,
-        uint256 amount1
-    );
-
-    event Collect(
-        address indexed owner,
-        address recipient,
-        int24 indexed tickLower,
-        int24 indexed tickUpper,
-        uint128 amount0,
-        uint128 amount1
-    );
-
-    event CollectProtocol(
-        address indexed sender,
-        address indexed recipient,
-        uint128 amount0,
-        uint128 amount1
-    );
-
-    // ===== Uniswap V4 (PoolManager) =====
-    #[sol(rename = "V4Swap")]
-    event Swap(
-        bytes32 indexed id,
-        address indexed sender,
-        int128 amount0,
-        int128 amount1,
-        uint160 sqrtPriceX96,
-        uint128 liquidity,
-        int24 tick,
-        uint24 fee
-    );
-
-    event ModifyLiquidity(
-        bytes32 indexed id,
-        address indexed sender,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta,
-        bytes32 salt
-    );
-
-    event Donate(bytes32 indexed id, address indexed sender, uint256 amount0, uint256 amount1);
-
-    event ProtocolFeeUpdated(bytes32 indexed id, uint16 protocolFee);
-
-    // V4 also emits ERC20-style Transfer / Approval via the PoolManager's ERC6909.
-}
-
 pub async fn price_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
     futures::try_join!(
         uniswap_v1_listener(db.clone(), provider),
@@ -170,6 +29,46 @@ pub async fn price_listener(db: Db, provider: &impl Provider) -> Result<(), Serv
 ///     k = eth_reserve * token_reserve
 /// so after any buy/sell/mint/burn the new reserve can be recomputed.
 async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
+    sol! {
+        // ===== Uniswap V1 (Factory + Exchange) =====
+        // V1 had no Swap event; only Mint, Burn, EthPurchase, TokenPurchase.
+        event TokenPurchase(
+            address indexed buyer,
+            uint256 eth_sold,
+            uint256 tokens_bought
+        );
+
+        event EthPurchase(
+            address indexed buyer,
+            uint256 tokens_sold,
+            uint256 eth_bought
+        );
+
+        event AddLiquidity(
+            address indexed provider,
+            uint256 eth_amount,
+            uint256 token_amount
+        );
+
+        event RemoveLiquidity(
+            address indexed provider,
+            uint256 eth_amount,
+            uint256 token_amount
+        );
+
+        event Transfer(
+            address indexed from,
+            address indexed to,
+            uint256 value
+        );
+
+        event Approval(
+            address indexed owner,
+            address indexed spender,
+            uint256 value
+        );
+    }
+
     // Filter for all V1 event signatures across every exchange contract.
     let filter = Filter::new().events(&[
         TokenPurchase::SIGNATURE,
@@ -265,6 +164,29 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 /// Swap/Mint/Burn events are also observed (they carry the amounts moved), but
 /// the authoritative reserve snapshot always comes from `Sync`.
 async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
+    sol! {
+        // ===== Uniswap V2 (Pair) =====
+        event Swap(
+            address indexed sender,
+            uint256 amount0In,
+            uint256 amount1In,
+            uint256 amount0Out,
+            uint256 amount1Out,
+            address indexed to
+        );
+
+        event Sync(uint112 reserve0, uint112 reserve1);
+
+        event Mint(address indexed sender, uint256 amount0, uint256 amount1);
+
+        event Burn(
+            address indexed sender,
+            uint256 amount0,
+            uint256 amount1,
+            address indexed to
+        );
+    }
+
     // Filter for all V2 pair event signatures across every pair contract.
     let filter = Filter::new().event(Sync::SIGNATURE.into());
 
@@ -339,11 +261,59 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 /// Liquidity-modifying events (Mint/Burn/Collect/CollectProtocol) do not change
 /// the price directly, so they are skipped for pricing purposes.
 async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
+    sol! {
+        // ===== Uniswap V3 (Pool) =====
+        event Swap(
+            address indexed sender,
+            address indexed recipient,
+            int256 amount0,
+            int256 amount1,
+            uint160 sqrtPriceX96,
+            uint128 liquidity,
+            int24 tick
+        );
+
+        event Mint(
+            address sender,
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+        event Burn(
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+        event Collect(
+            address indexed owner,
+            address recipient,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount0,
+            uint128 amount1
+        );
+
+        event CollectProtocol(
+            address indexed sender,
+            address indexed recipient,
+            uint128 amount0,
+            uint128 amount1
+        );
+    }
+
     // Filter for all V3 pool event signatures across every pool contract.
     let filter = Filter::new().events(&[
-        V3Swap::SIGNATURE,
-        V3Mint::SIGNATURE,
-        V3Burn::SIGNATURE,
+        Swap::SIGNATURE,
+        Mint::SIGNATURE,
+        Burn::SIGNATURE,
         Collect::SIGNATURE,
         CollectProtocol::SIGNATURE,
     ]);
@@ -358,7 +328,7 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
         let address = log.address();
 
         // Only `Swap` carries a fresh `sqrtPriceX96`.
-        let Ok(ev) = V3Swap::decode_log(&log.inner) else {
+        let Ok(ev) = Swap::decode_log(&log.inner) else {
             continue;
         };
 
@@ -411,10 +381,50 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 /// rather than by the contract address. We key our price by the pool id here,
 /// mapped into the pair address field.
 async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
+    sol! {
+        // ===== Uniswap V4 (PoolManager) =====
+        event Swap(
+            bytes32 indexed id,
+            address indexed sender,
+            int128 amount0,
+            int128 amount1,
+            uint160 sqrtPriceX96,
+            uint128 liquidity,
+            int24 tick,
+            uint24 fee
+        );
+
+        event ModifyLiquidity(
+            bytes32 indexed id,
+            address indexed sender,
+            int24 tickLower,
+            int24 tickUpper,
+            int256 liquidityDelta,
+            bytes32 salt
+        );
+
+        event Donate(bytes32 indexed id, address indexed sender, uint256 amount0, uint256 amount1);
+
+        event ProtocolFeeUpdated(bytes32 indexed id, uint16 protocolFee);
+
+        // V4 also emits ERC20-style Transfer / Approval via the PoolManager's ERC6909.
+        event Transfer(
+            address indexed from,
+            address indexed to,
+            uint256 value
+        );
+
+        event Approval(
+            address indexed owner,
+            address indexed spender,
+            uint256 value
+        );
+    }
+
     // Filter for all V4 pool-manager event signatures. All pools share the
     // single PoolManager contract, so the address is not per-pool.
     let filter = Filter::new().events(&[
-        V4Swap::SIGNATURE,
+        Swap::SIGNATURE,
         ModifyLiquidity::SIGNATURE,
         Donate::SIGNATURE,
         ProtocolFeeUpdated::SIGNATURE,
@@ -428,7 +438,7 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 
     while let Some(log) = stream.next().await {
         // Only `Swap` carries a fresh `sqrtPriceX96`.
-        let Ok(ev) = V4Swap::decode_log(&log.inner) else {
+        let Ok(ev) = Swap::decode_log(&log.inner) else {
             continue;
         };
 
@@ -450,7 +460,7 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 
         let id = TokenPairId {
             version: UniswapVersion::V4,
-            pair_address: PairAddress::PoolId(pool_id),
+            pair_address: PairAddress::PoolId(pool_id.into()),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
