@@ -177,3 +177,12 @@ pub struct TimestampedPrice {
 pub struct PricesRangeResponse {
     pub prices: Vec<TimestampedPrice>,
 }
+
+#[derive(Serialize)]
+pub struct Ohlc {
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub timestamp: u64,
+}

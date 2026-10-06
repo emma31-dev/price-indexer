@@ -114,6 +114,75 @@ pub async fn prices_range_handler(
     (StatusCode::OK, Json(PricesRangeResponse { prices })).into_response()
 }
 
+pub async fn ohlc_handler(
+    State(db): State<Db>,
+    Json(id): Json<PricesRangeRequest>,
+) -> impl IntoResponse {
+    let start = TokenPairId {
+        pair_address: id.pair_address.clone(),
+        version: id.version.clone(),
+        timestamp: id.start_timestamp,
+    };
+    let end = TokenPairId {
+        pair_address: id.pair_address.clone(),
+        version: id.version.clone(),
+        timestamp: id.end_timestamp,
+    };
+
+    let mut ohlc: Option<Ohlc> = None;
+    for item in db.range(start..end) {
+        let (key, value) = match item {
+            Ok(kv) => kv,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
+            }
+        };
+        let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
+            Ok(Some(p)) => p.price,
+            Ok(None) => continue,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
+                    .into_response();
+            }
+        };
+        let timestamp = match rkyv::from_bytes::<TokenPairId, rkyv::rancor::Error>(&key) {
+            Ok(k) => k.timestamp,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode key").into_response();
+            }
+        };
+        ohlc = Some(match ohlc {
+            None => Ohlc {
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                timestamp,
+            },
+            Some(current) => Ohlc {
+                open: current.open,
+                high: if price > current.high {
+                    price
+                } else {
+                    current.high
+                },
+                low: if price < current.low {
+                    price
+                } else {
+                    current.low
+                },
+                close: price,
+                timestamp,
+            },
+        });
+    }
+
+    match ohlc {
+        Some(ohlc) => (StatusCode::OK, Json(ohlc)).into_response(),
+        None => (StatusCode::NOT_FOUND, "Price not found").into_response(),
+    }
+}
+
 pub async fn ath_handler(
     State(db): State<Db>,
     Json(id): Json<PricesRangeRequest>,
