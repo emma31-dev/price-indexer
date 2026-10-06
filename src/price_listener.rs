@@ -3,16 +3,10 @@ use std::collections::HashMap;
 use crate::error::ServerError;
 use crate::types::*;
 use alloy::{
-    primitives::Address,
-    providers::Provider,
-    rpc::types::{Filter, Log},
-    sol,
-    sol_types::{SolEvent, SolEventInterface},
+    primitives::Address, providers::Provider, rpc::types::Filter, sol, sol_types::SolEvent,
 };
 use chrono::Utc;
 use futures::StreamExt;
-use parquet::data_type::AsBytes;
-use serde::{Deserialize, Serialize};
 use sled::Db;
 
 sol! {
