@@ -184,5 +184,4 @@ pub struct Ohlc {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub timestamp: u64,
 }

@@ -131,7 +131,7 @@ pub async fn ohlc_handler(
 
     let mut ohlc: Option<Ohlc> = None;
     for item in db.range(start..end) {
-        let (key, value) = match item {
+        let (_, value) = match item {
             Ok(kv) => kv,
             Err(_) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
@@ -145,19 +145,12 @@ pub async fn ohlc_handler(
                     .into_response();
             }
         };
-        let timestamp = match rkyv::from_bytes::<TokenPairId, rkyv::rancor::Error>(&key) {
-            Ok(k) => k.timestamp,
-            Err(_) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode key").into_response();
-            }
-        };
         ohlc = Some(match ohlc {
             None => Ohlc {
                 open: price,
                 high: price,
                 low: price,
                 close: price,
-                timestamp,
             },
             Some(current) => Ohlc {
                 open: current.open,
@@ -172,7 +165,6 @@ pub async fn ohlc_handler(
                     current.low
                 },
                 close: price,
-                timestamp,
             },
         });
     }
