@@ -1,6 +1,5 @@
 use alloy::providers::ProviderBuilder;
 
-mod block_listener;
 mod error;
 mod handlers;
 mod price_listener;
@@ -16,12 +15,13 @@ async fn main() {
         .unwrap();
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     futures::try_join!(
-        crate::block_listener::v1_listener(&provider, sled_db.clone()),
-        crate::block_listener::v2_listener(&provider, sled_db.clone()),
-        crate::block_listener::v3_listener(&provider, sled_db.clone()),
-        crate::block_listener::v4_listener(&provider, sled_db.clone()),
         crate::price_listener::price_listener(sled_db.clone(), &provider),
-        axum::serve(listener, crate::routes::app(sled_db.clone()))
+        async {
+            axum::serve(listener, crate::routes::app(sled_db.clone()).await)
+                .await
+                .ok();
+            Ok(())
+        }
     )
     .unwrap();
 }

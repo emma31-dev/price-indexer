@@ -1,6 +1,5 @@
 use crate::types::*;
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
-use serde::Serialize;
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use sled::Db;
 
 pub async fn health_handler() -> impl IntoResponse {
@@ -34,8 +33,8 @@ fn price_at(
         timestamp: from_timestamp.saturating_add(1),
     };
     let end = TokenPairId {
-        pair_address: pair_address.to_string(),
-        version: version.to_string(),
+        pair_address: pair_address.clone(),
+        version: version.clone(),
         timestamp: from_timestamp.saturating_sub(3_600),
     };
 
@@ -43,14 +42,14 @@ fn price_at(
 
     match db.range(range).next_back() {
         Some(Ok((key, value))) => {
-            let price = match bincode::deserialize::<Option<f64>>(&value) {
+            let price = match rkyv::from_bytes::<Option<f64>, rkyv::rancor::Error>(&value) {
                 Ok(p) => p,
                 Err(_) => {
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                         .into_response();
                 }
             };
-            let timestamp = match bincode::deserialize::<TokenPairId>(&key) {
+            let timestamp = match rkyv::from_bytes::<TokenPairId, rkyv::rancor::Error>(&key) {
                 Ok(k) => k.timestamp,
                 Err(_) => {
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode key")
@@ -90,9 +89,25 @@ pub async fn prices_range_handler(
 
     let mut prices = Vec::new();
     for item in db.range(start..end) {
-        let (key, value) = item?;
-        let price = bincode::deserialize::<Option<f64>>(&value)?;
-        let timestamp = bincode::deserialize::<TokenPairId>(&key)?.timestamp;
+        let (key, value) = match item {
+            Ok(kv) => kv,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
+            }
+        };
+        let price = match rkyv::from_bytes::<Option<f64>, rkyv::rancor::Error>(&value) {
+            Ok(p) => p,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
+                    .into_response();
+            }
+        };
+        let timestamp = match rkyv::from_bytes::<TokenPairId, rkyv::rancor::Error>(&key) {
+            Ok(k) => k.timestamp,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode key").into_response();
+            }
+        };
         prices.push(TimestampedPrice { price, timestamp });
     }
 

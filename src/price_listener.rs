@@ -11,6 +11,7 @@ use alloy::{
 };
 use chrono::Utc;
 use futures::StreamExt;
+use parquet::data_type::AsBytes;
 use serde::{Deserialize, Serialize};
 use sled::Db;
 
@@ -197,25 +198,31 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             reserves.get(&address).copied().unwrap_or((0.0, 0.0));
 
         // V1 events are emitted by the exchange with the same topic layout.
-        if let Ok(ev) = TokenPurchase::decode_log(&log.inner) {
+        let volume = if let Ok(ev) = TokenPurchase::decode_log(&log.inner) {
             let eth_sold = u256_to_f64(ev.eth_sold);
             let tokens_bought = u256_to_f64(ev.tokens_bought);
             eth_reserve += eth_sold;
             token_reserve -= tokens_bought;
+            eth_sold
         } else if let Ok(ev) = EthPurchase::decode_log(&log.inner) {
             let tokens_sold = u256_to_f64(ev.tokens_sold);
             let eth_bought = u256_to_f64(ev.eth_bought);
             token_reserve += tokens_sold;
             eth_reserve -= eth_bought;
+            eth_bought
         } else if let Ok(ev) = AddLiquidity::decode_log(&log.inner) {
-            eth_reserve += u256_to_f64(ev.eth_amount);
+            let eth_amount = u256_to_f64(ev.eth_amount);
+            eth_reserve += eth_amount;
             token_reserve += u256_to_f64(ev.token_amount);
+            eth_amount
         } else if let Ok(ev) = RemoveLiquidity::decode_log(&log.inner) {
-            eth_reserve -= u256_to_f64(ev.eth_amount);
+            let eth_amount = u256_to_f64(ev.eth_amount);
+            eth_reserve -= eth_amount;
             token_reserve -= u256_to_f64(ev.token_amount);
+            eth_amount
         } else {
             continue;
-        }
+        };
 
         reserves.insert(address, (eth_reserve, token_reserve));
 
@@ -228,7 +235,7 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 
         let id = TokenPairId {
             version: UniswapVersion::V1,
-            pair_address: PairAddress::Address(address),
+            pair_address: PairAddress::Address(address.into()),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
@@ -238,8 +245,14 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             }),
         };
 
+        let tick = TickMeta {
+            price,
+            volume,
+            block: log.block_number.unwrap_or_default(),
+        };
+
         if db.get(&id)?.is_none() {
-            db.insert(id, price)?;
+            db.insert(id, tick)?;
         }
 
         println!("Stored V1 price for {address:?}: {price}");
@@ -259,7 +272,7 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
 /// the authoritative reserve snapshot always comes from `Sync`.
 async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), ServerError> {
     // Filter for all V2 pair event signatures across every pair contract.
-    let filter = Filter::new().event_signature(Sync::SIGNATURE);
+    let filter = Filter::new().event(Sync::SIGNATURE.into());
 
     let mut stream = provider
         .watch_logs(&filter)
@@ -290,9 +303,13 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             0.0
         };
 
+        // `Sync` only communicates reserves, not the moved amount, so the
+        // volume is recorded as zero for these ticks.
+        let volume = 0.0;
+
         let id = TokenPairId {
             version: UniswapVersion::V2,
-            pair_address: PairAddress::Address(address),
+            pair_address: PairAddress::Address(address.into()),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
@@ -302,8 +319,14 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             }),
         };
 
+        let tick = TickMeta {
+            price,
+            volume,
+            block: log.block_number.unwrap_or_default(),
+        };
+
         if db.get(&id)?.is_none() {
-            db.insert(id, price)?;
+            db.insert(id, tick)?;
         }
 
         println!("Stored V2 price for {address:?}: {price}");
@@ -355,9 +378,13 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             0.0
         };
 
+        // The absolute amounts moved by the swap give us the volume.
+        let volume =
+            u256_to_f64(ev.amount0.unsigned_abs()) + u256_to_f64(ev.amount1.unsigned_abs());
+
         let id = TokenPairId {
             version: UniswapVersion::V3,
-            pair_address: PairAddress::Address(address),
+            pair_address: PairAddress::Address(address.into()),
             timestamp: log.block_timestamp.unwrap_or_else(|| {
                 println!(
                     "skipping tick: block {} has no timestamp",
@@ -367,8 +394,14 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             }),
         };
 
+        let tick = TickMeta {
+            price,
+            volume,
+            block: log.block_number.unwrap_or_default(),
+        };
+
         if db.get(&id)?.is_none() {
-            db.insert(id, price)?;
+            db.insert(id, tick)?;
         }
 
         println!("Stored V3 price for {address:?}: {price}");
@@ -414,6 +447,9 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             0.0
         };
 
+        // The absolute amounts moved by the swap give us the volume.
+        let volume = i128_to_f64(ev.amount0.abs()) + i128_to_f64(ev.amount1.abs());
+
         // The pool identifier is the indexed `id` (bytes32). We store it in the
         // `pair_address` field by taking the low 20 bytes as an address.
         let pool_id = ev.id;
@@ -430,10 +466,17 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             }),
         };
 
+        let tick = TickMeta {
+            price,
+            volume,
+            block: log.block_number.unwrap_or_default(),
+        };
+
         if db.get(&id)?.is_none() {
-            db.insert(id, price)?;
+            db.insert(id, tick)?;
         }
 
+        let pair_address = log.address();
         println!("Stored V4 price for {pair_address:?}: {price}");
     }
 
@@ -453,4 +496,9 @@ fn u112_to_f64(v: alloy::primitives::Uint<112, 2>) -> f64 {
 /// Helper to convert a U160 value into an f64.
 fn u160_to_f64(v: alloy::primitives::Uint<160, 3>) -> f64 {
     v.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
+/// Helper to convert an i128 value into an f64.
+fn i128_to_f64(v: i128) -> f64 {
+    v as f64
 }

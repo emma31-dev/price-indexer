@@ -12,8 +12,8 @@ pub enum ServerError {
     Provider(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
     #[error("sled database error: {0}")]
     Sled(#[from] sled::Error),
-    #[error("bincode error: {0}")]
-    Bincode(#[from] bincode::Error),
+    #[error("rkyv error: {0}")]
+    Rkyv(#[from] rkyv::rancor::Error),
     #[error("Unknown error occured: {0}")]
     Unknown(String),
 }
@@ -27,7 +27,7 @@ impl IntoResponse for ServerError {
             ServerError::AbiDecode(_) => "failed to decode ABI data".to_string(),
             ServerError::Provider(_) => "RPC provider error".to_string(),
             ServerError::Sled(_) => "database error".to_string(),
-            ServerError::Bincode(_) => "serialization error".to_string(),
+            ServerError::Rkyv(_) => "serialization error".to_string(),
             ServerError::Unknown(msg) => msg.clone(),
         };
 

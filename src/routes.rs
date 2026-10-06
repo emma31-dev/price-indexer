@@ -1,5 +1,6 @@
 use crate::handlers::*;
 use axum::Router;
+use axum::routing::get;
 use sled::Db;
 
 pub async fn app(sled_db: Db) -> Router {
