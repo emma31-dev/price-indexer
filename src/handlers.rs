@@ -42,9 +42,8 @@ fn price_at(
 
     match db.range(range).next_back() {
         Some(Ok((key, value))) => {
-            let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
-                Ok(Some(p)) => Some(p.price),
-                Ok(None) => None,
+            let price = match rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value) {
+                Ok(p) => p.price,
                 Err(_) => {
                     return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                         .into_response();
@@ -96,9 +95,8 @@ pub async fn prices_range_handler(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
             }
         };
-        let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
-            Ok(Some(p)) => Some(p.price),
-            Ok(None) => None,
+        let price = match rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value) {
+            Ok(p) => p.price,
             Err(_) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                     .into_response();
@@ -114,4 +112,80 @@ pub async fn prices_range_handler(
     }
 
     (StatusCode::OK, Json(PricesRangeResponse { prices })).into_response()
+}
+
+pub async fn ath_handler(
+    State(db): State<Db>,
+    Json(id): Json<PricesRangeRequest>,
+) -> impl IntoResponse {
+    extreme_price_at(&db, &id, true)
+}
+
+pub async fn atl_handler(
+    State(db): State<Db>,
+    Json(id): Json<PricesRangeRequest>,
+) -> impl IntoResponse {
+    extreme_price_at(&db, &id, false)
+}
+
+fn extreme_price_at(db: &Db, id: &PricesRangeRequest, find_high: bool) -> axum::response::Response {
+    let start = TokenPairId {
+        pair_address: id.pair_address.clone(),
+        version: id.version.clone(),
+        timestamp: id.start_timestamp,
+    };
+    let end = TokenPairId {
+        pair_address: id.pair_address.clone(),
+        version: id.version.clone(),
+        timestamp: id.end_timestamp,
+    };
+
+    let mut result: Option<TimestampedPrice> = None;
+    for item in db.range(start..end) {
+        let (key, value) = match item {
+            Ok(kv) => kv,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
+            }
+        };
+        let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
+            Ok(Some(p)) => Some(p.price),
+            Ok(None) => None,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
+                    .into_response();
+            }
+        };
+        let timestamp = match rkyv::from_bytes::<TokenPairId, rkyv::rancor::Error>(&key) {
+            Ok(k) => k.timestamp,
+            Err(_) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode key").into_response();
+            }
+        };
+        let price = match price {
+            Some(p) => p,
+            None => continue,
+        };
+        let is_better = match &result {
+            None => true,
+            Some(current) => {
+                if find_high {
+                    price > current.price
+                } else {
+                    price < current.price
+                }
+            }
+        };
+        if is_better {
+            result = Some(TimestampedPrice {
+                price: price,
+                timestamp,
+            });
+        }
+    }
+
+    match result {
+        Some(extreme) => (StatusCode::OK, Json(extreme)).into_response(),
+        None => (StatusCode::NOT_FOUND, "Price not found").into_response(),
+    }
 }
