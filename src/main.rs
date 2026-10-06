@@ -19,7 +19,7 @@ async fn main() {
         async {
             axum::serve(listener, crate::routes::app(sled_db.clone()).await)
                 .await
-                .ok();
+                .expect("failed to serve axum app");
             Ok(())
         }
     )
