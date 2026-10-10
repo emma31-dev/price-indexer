@@ -93,7 +93,7 @@ pub async fn prices_range_handler(
 pub async fn ohlc_handler(
     State(db): State<Db>,
     Json(id): Json<PricesRangeRequest>,
-) -> impl IntoResponse {
+) -> ServerResponse<(StatusCode, Json<Ohlc>)> {
     let start = TokenPairId {
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
@@ -107,19 +107,8 @@ pub async fn ohlc_handler(
 
     let mut ohlc: Option<Ohlc> = None;
     for item in db.range(start..end) {
-        let (_, value) = match item {
-            Ok(kv) => kv,
-            Err(_) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
-            }
-        };
-        let price = match rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value) {
-            Ok(p) => p.price,
-            Err(_) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
-                    .into_response();
-            }
-        };
+        let (_, value) = item?;
+        let price = rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value)?.price;
         ohlc = Some(match ohlc {
             None => Ohlc {
                 open: price,
@@ -145,8 +134,8 @@ pub async fn ohlc_handler(
     }
 
     match ohlc {
-        Some(ohlc) => (StatusCode::OK, Json(ohlc)).into_response(),
-        None => (StatusCode::NOT_FOUND, "Price not found").into_response(),
+        Some(ohlc) => Ok((StatusCode::OK, Json(ohlc))),
+        None => Err(ServerError::Unknown("Price not found".into())),
     }
 }
 
