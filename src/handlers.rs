@@ -85,6 +85,30 @@ pub async fn prices_range_handler(
     Ok((StatusCode::OK, Json(PricesRangeResponse { prices })))
 }
 
+pub async fn volume_handler(
+    State(db): State<Db>,
+    Json(id): Json<PricesRangeRequest>,
+) -> ServerResponse<(StatusCode, Json<VolumeResponse>)> {
+    let start = TokenPairId {
+        pair_address: id.pair_address.clone(),
+        version: id.version.clone(),
+        timestamp: id.start_timestamp,
+    };
+    let end = TokenPairId {
+        pair_address: id.pair_address.clone(),
+        version: id.version.clone(),
+        timestamp: id.end_timestamp,
+    };
+
+    let mut volume = 0f64;
+    for item in db.range(start..end) {
+        let (_, value) = item?;
+        volume += rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value)?.volume;
+    }
+
+    Ok((StatusCode::OK, Json(VolumeResponse { volume })))
+}
+
 pub async fn ohlc_handler(
     State(db): State<Db>,
     Json(id): Json<PricesRangeRequest>,

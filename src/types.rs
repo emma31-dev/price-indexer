@@ -185,3 +185,8 @@ pub struct Ohlc {
     pub low: f64,
     pub close: f64,
 }
+
+#[derive(Serialize)]
+pub struct VolumeResponse {
+    pub volume: f64,
+}

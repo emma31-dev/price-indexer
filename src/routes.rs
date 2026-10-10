@@ -19,7 +19,7 @@ fn eth_router(sled_db: Db) -> Router {
         // .route("/chart", get(chart_handler))
         // .route("/chart/line", get(line_chart_handler))
         // .route("/chart/candlestick", get(candlestick_chart_handler))
-        // .route("/volume", get(volume_handler))
+        .route("/volume", get(volume_handler))
         // .route("/market_cap", get(market_cap_handler))
         // .route("/stats", get(stats_handler))
         // .route("/average", get(average_price_handler))
