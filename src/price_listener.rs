@@ -23,18 +23,13 @@ pub async fn price_listener(db: Db, provider: &impl Provider) -> Result<(), Serv
 /// listeners can carry the previous price forward when an event only changes
 /// volume (or vice versa) instead of overwriting it with a zero.
 fn last_tick(db: &Db, id: &TokenPairId) -> Result<Option<TickMeta>, ServerError> {
-    let start = TokenPairId {
+    let end = TokenPairId {
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.timestamp.clone().saturating_add(1),
     };
-    let end = TokenPairId {
-        pair_address: id.pair_address.clone(),
-        version: id.version.clone(),
-        timestamp: id.timestamp.clone().saturating_sub(3_600),
-    };
 
-    let range = start..end;
+    let range = ..end;
     // `id` is the leading key, so a range over just that pair walks its ticks.
     // `next_back` gives us the latest (highest) key, which is the newest tick.
     let Some(entry) = db.range(range).next_back() else {

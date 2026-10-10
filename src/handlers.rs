@@ -30,18 +30,13 @@ fn price_at(
     version: &UniswapVersion,
     from_timestamp: u64,
 ) -> ServerResponse<(StatusCode, Json<PriceResponse>)> {
-    let start = TokenPairId {
+    let end = TokenPairId {
         pair_address: pair_address.clone(),
         version: version.clone(),
         timestamp: from_timestamp.saturating_add(1),
     };
-    let end = TokenPairId {
-        pair_address: pair_address.clone(),
-        version: version.clone(),
-        timestamp: from_timestamp.saturating_sub(3_600),
-    };
 
-    let range = start..end;
+    let range = ..end;
 
     match db.range(range).next_back() {
         Some(Ok((key, value))) => {
