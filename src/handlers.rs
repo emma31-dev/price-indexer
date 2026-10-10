@@ -137,9 +137,8 @@ pub async fn ohlc_handler(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
             }
         };
-        let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
-            Ok(Some(p)) => p.price,
-            Ok(None) => continue,
+        let price = match rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value) {
+            Ok(p) => p.price,
             Err(_) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                     .into_response();
@@ -209,9 +208,8 @@ fn extreme_price_at(db: &Db, id: &PricesRangeRequest, find_high: bool) -> axum::
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
             }
         };
-        let price = match rkyv::from_bytes::<Option<TickMeta>, rkyv::rancor::Error>(&value) {
-            Ok(Some(p)) => Some(p.price),
-            Ok(None) => None,
+        let price = match rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value) {
+            Ok(p) => Some(p.price),
             Err(_) => {
                 return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to decode price")
                     .into_response();
