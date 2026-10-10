@@ -162,10 +162,24 @@ pub async fn ath_handler(
     State(db): State<Db>,
     Json(id): Json<PricesRangeRequest>,
 ) -> impl IntoResponse {
-    extreme_price_at(&db, &id, true)
+    extreme_price_at_all(&db, &id, true)
 }
 
 pub async fn atl_handler(
+    State(db): State<Db>,
+    Json(id): Json<PricesRangeRequest>,
+) -> impl IntoResponse {
+    extreme_price_at_all(&db, &id, false)
+}
+
+pub async fn high_price_handler(
+    State(db): State<Db>,
+    Json(id): Json<PricesRangeRequest>,
+) -> impl IntoResponse {
+    extreme_price_at(&db, &id, true)
+}
+
+pub async fn low_price_handler(
     State(db): State<Db>,
     Json(id): Json<PricesRangeRequest>,
 ) -> impl IntoResponse {
@@ -205,6 +219,43 @@ fn extreme_price_at(
         };
         if is_better {
             result = Some(TimestampedPrice { price, timestamp });
+        }
+    }
+
+    match result {
+        Some(extreme) => Ok((StatusCode::OK, Json(extreme))),
+        None => Err(ServerError::Unknown("Price not found".into())),
+    }
+}
+
+fn extreme_price_at_all(
+    db: &Db,
+    id: &PricesRangeRequest,
+    find_high: bool,
+) -> ServerResponse<(StatusCode, Json<TimestampedPrice>)> {
+    let mut result: Option<TimestampedPrice> = None;
+    for item in db.iter() {
+        let (key, value) = item?;
+        let key = rkyv::from_bytes::<TokenPairId, rkyv::rancor::Error>(&key)?;
+        if key.pair_address != id.pair_address || key.version != id.version {
+            continue;
+        }
+        let price = rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value)?.price;
+        let is_better = match &result {
+            None => true,
+            Some(current) => {
+                if find_high {
+                    price > current.price
+                } else {
+                    price < current.price
+                }
+            }
+        };
+        if is_better {
+            result = Some(TimestampedPrice {
+                price,
+                timestamp: key.timestamp,
+            });
         }
     }
 
