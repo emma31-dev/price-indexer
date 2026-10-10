@@ -1,11 +1,12 @@
 use crate::{error::ServerError, types::*};
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use serde_json::json;
 use sled::Db;
 
 type ServerResponse<T> = Result<T, ServerError>;
 
 pub async fn health_handler() -> impl IntoResponse {
-    (StatusCode::OK, "Healthy")
+    (StatusCode::OK, Json(json!({"status": "Ok"})))
 }
 
 pub async fn price_handler(

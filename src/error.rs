@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -31,6 +32,10 @@ impl IntoResponse for ServerError {
             ServerError::Unknown(msg) => msg.clone(),
         };
 
-        (StatusCode::INTERNAL_SERVER_ERROR, message).into_response()
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "error": message })),
+        )
+            .into_response()
     }
 }
