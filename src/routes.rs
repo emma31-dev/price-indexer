@@ -4,12 +4,13 @@ use axum::routing::get;
 use sled::Db;
 
 pub async fn app(sled_db: Db) -> Router {
-    Router::new().nest("/eth", eth_router(sled_db.clone()))
+    Router::new()
+        .route("/health", get(health_handler))
+        .nest("/eth", eth_router(sled_db.clone()))
 }
 
 fn eth_router(sled_db: Db) -> Router {
     Router::new()
-        .route("/health", get(health_handler))
         .route("/latest_price", get(price_handler))
         .route("/price", get(price_at_handler))
         .route("/prices", get(prices_range_handler))
