@@ -190,3 +190,13 @@ pub struct Ohlc {
 pub struct VolumeResponse {
     pub volume: f64,
 }
+
+#[derive(serde::Deserialize)]
+pub struct ChartRequest {
+    pub pair_address: PairAddress,
+    pub version: UniswapVersion,
+    pub start_timestamp: u64,
+    pub end_timestamp: u64,
+    pub span: u64,
+    pub time_range: u64,
+}

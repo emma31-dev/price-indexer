@@ -164,6 +164,79 @@ pub async fn ohlc_handler(
     }
 }
 
+pub async fn chart_handler(
+    State(db): State<Db>,
+    Json(id): Json<ChartRequest>,
+) -> ServerResponse<(StatusCode, Json<Vec<Ohlc>>)> {
+    let span = id.span.max(1);
+    let start_ts = id
+        .start_timestamp
+        .max(id.end_timestamp.saturating_sub(span * id.time_range));
+    let end_ts = id.end_timestamp;
+
+    if end_ts <= start_ts {
+        return Err(ServerError::Unknown(
+            StatusCode::BAD_REQUEST,
+            "end timestamp cannot be less than the start timestamp".into(),
+        ));
+    }
+
+    let interval = id.time_range.max(1);
+    let mut response = Vec::new();
+
+    let mut bucket_start = start_ts;
+    while bucket_start < end_ts {
+        let bucket_end = (bucket_start + interval).min(end_ts);
+
+        let start = TokenPairId {
+            pair_address: id.pair_address.clone(),
+            version: id.version.clone(),
+            timestamp: bucket_start,
+        };
+        let end = TokenPairId {
+            pair_address: id.pair_address.clone(),
+            version: id.version.clone(),
+            timestamp: bucket_end,
+        };
+
+        let mut ohlc: Option<Ohlc> = None;
+        for item in db.range(start..end) {
+            let (_, value) = item?;
+            let price = rkyv::from_bytes::<TickMeta, rkyv::rancor::Error>(&value)?.price;
+            ohlc = Some(match ohlc {
+                None => Ohlc {
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
+                },
+                Some(current) => Ohlc {
+                    open: current.open,
+                    high: if price > current.high {
+                        price
+                    } else {
+                        current.high
+                    },
+                    low: if price < current.low {
+                        price
+                    } else {
+                        current.low
+                    },
+                    close: price,
+                },
+            });
+        }
+
+        if let Some(ohlc) = ohlc {
+            response.push(ohlc);
+        }
+
+        bucket_start = bucket_end;
+    }
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
 pub async fn ath_handler(
     State(db): State<Db>,
     Json(id): Json<PricesRangeRequest>,
