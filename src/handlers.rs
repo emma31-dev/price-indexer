@@ -50,7 +50,10 @@ fn price_at(
             Ok((StatusCode::OK, Json(response)))
         }
         Some(Err(e)) => Err(ServerError::Sled(e)),
-        None => Err(ServerError::Unknown("Price not found".into())),
+        None => Err(ServerError::Unknown(
+            StatusCode::NOT_FOUND,
+            "Price not found".into(),
+        )),
     }
 }
 
@@ -154,7 +157,10 @@ pub async fn ohlc_handler(
 
     match ohlc {
         Some(ohlc) => Ok((StatusCode::OK, Json(ohlc))),
-        None => Err(ServerError::Unknown("Price not found".into())),
+        None => Err(ServerError::Unknown(
+            StatusCode::NOT_FOUND,
+            "Price not found".into(),
+        )),
     }
 }
 
@@ -224,7 +230,10 @@ fn extreme_price_at(
 
     match result {
         Some(extreme) => Ok((StatusCode::OK, Json(extreme))),
-        None => Err(ServerError::Unknown("Price not found".into())),
+        None => Err(ServerError::Unknown(
+            StatusCode::NOT_FOUND,
+            "Price not found".into(),
+        )),
     }
 }
 
@@ -261,6 +270,9 @@ fn extreme_price_at_all(
 
     match result {
         Some(extreme) => Ok((StatusCode::OK, Json(extreme))),
-        None => Err(ServerError::Unknown("Price not found".into())),
+        None => Err(ServerError::Unknown(
+            StatusCode::NOT_FOUND,
+            "Price not found".into(),
+        )),
     }
 }

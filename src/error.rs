@@ -16,11 +16,16 @@ pub enum ServerError {
     #[error("rkyv error: {0}")]
     Rkyv(#[from] rkyv::rancor::Error),
     #[error("Unknown error occured: {0}")]
-    Unknown(String),
+    Unknown(StatusCode, String),
 }
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
+        let status = match &self {
+            ServerError::Unknown(status, _) => *status,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+
         let message = match &self {
             ServerError::MissMatchByte { expected, returned } => {
                 format!("byte mismatch: expected {expected}, returned {returned}")
@@ -29,13 +34,9 @@ impl IntoResponse for ServerError {
             ServerError::Provider(_) => "RPC provider error".to_string(),
             ServerError::Sled(_) => "database error".to_string(),
             ServerError::Rkyv(_) => "serialization error".to_string(),
-            ServerError::Unknown(msg) => msg.clone(),
+            ServerError::Unknown(_, msg) => msg.clone(),
         };
 
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(json!({ "error": message })),
-        )
-            .into_response()
+        (status, axum::Json(json!({ "error": message }))).into_response()
     }
 }
