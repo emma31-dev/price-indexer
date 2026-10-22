@@ -103,7 +103,15 @@ pub struct TokenPairId {
 
 impl AsRef<[u8]> for TokenPairId {
     fn as_ref(&self) -> &[u8] {
-        self.pair_address.as_ref()
+        const TIMESTAMP_SIZE: usize = 8;
+        const VERSION_SIZE: usize = 1;
+
+        let pair_address = self.pair_address.as_ref();
+        let mut bytes = Vec::with_capacity(VERSION_SIZE + pair_address.len() + TIMESTAMP_SIZE);
+        bytes.push(self.version.into());
+        bytes.extend_from_slice(pair_address);
+        bytes.extend_from_slice(&self.timestamp.to_be_bytes());
+        Box::leak(bytes.into_boxed_slice())
     }
 }
 
