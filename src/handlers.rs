@@ -34,7 +34,8 @@ fn price_at(
         pair_address: pair_address.clone(),
         version: version.clone(),
         timestamp: from_timestamp.saturating_add(1),
-    };
+    }
+    .to_bytes();
 
     let range = ..end;
 
@@ -70,12 +71,14 @@ pub async fn prices_range_handler(
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: start_ts,
-    };
+    }
+    .to_bytes();
     let end = TokenPairId {
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: end_ts,
-    };
+    }
+    .to_bytes();
 
     let mut prices = Vec::new();
     for item in db.range(start..end) {
@@ -96,12 +99,14 @@ pub async fn volume_handler(
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.start_timestamp,
-    };
+    }
+    .to_bytes();
     let end = TokenPairId {
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.end_timestamp,
-    };
+    }
+    .to_bytes();
 
     let mut volume = 0f64;
     for item in db.range(start..end) {
@@ -120,12 +125,14 @@ pub async fn ohlc_handler(
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.start_timestamp,
-    };
+    }
+    .to_bytes();
     let end = TokenPairId {
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.end_timestamp,
-    };
+    }
+    .to_bytes();
 
     let mut ohlc: Option<Ohlc> = None;
     for item in db.range(start..end) {
@@ -192,12 +199,14 @@ pub async fn chart_handler(
             pair_address: id.pair_address.clone(),
             version: id.version.clone(),
             timestamp: bucket_start,
-        };
+        }
+        .to_bytes();
         let end = TokenPairId {
             pair_address: id.pair_address.clone(),
             version: id.version.clone(),
             timestamp: bucket_end,
-        };
+        }
+        .to_bytes();
 
         let mut ohlc: Option<Ohlc> = None;
         for item in db.range(start..end) {
@@ -274,12 +283,14 @@ fn extreme_price_at(
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.start_timestamp,
-    };
+    }
+    .to_bytes();
     let end = TokenPairId {
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.end_timestamp,
-    };
+    }
+    .to_bytes();
 
     let mut result: Option<TimestampedPrice> = None;
     for item in db.range(start..end) {

@@ -27,7 +27,8 @@ fn last_tick(db: &Db, id: &TokenPairId) -> Result<Option<TickMeta>, ServerError>
         pair_address: id.pair_address.clone(),
         version: id.version.clone(),
         timestamp: id.timestamp.clone().saturating_add(1),
-    };
+    }
+    .to_bytes();
 
     let range = ..end;
     // `id` is the leading key, so a range over just that pair walks its ticks.
@@ -176,8 +177,8 @@ async fn uniswap_v1_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             block: log.block_number.unwrap_or_default(),
         };
 
-        if db.get(&id)?.is_none() {
-            db.insert(id, tick)?;
+        if db.get(&id.to_bytes())?.is_none() {
+            db.insert(id.to_bytes(), tick)?;
         }
 
         println!("Stored V1 price for {address:?}: {price}");
@@ -317,8 +318,8 @@ async fn uniswap_v2_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             block: log.block_number.unwrap_or_default(),
         };
 
-        if db.get(&id)?.is_none() {
-            db.insert(id, tick)?;
+        if db.get(&id.to_bytes())?.is_none() {
+            db.insert(id.to_bytes(), tick)?;
         }
 
         println!("Stored V2 price for {address:?}: {price}");
@@ -477,8 +478,8 @@ async fn uniswap_v3_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             block: log.block_number.unwrap_or_default(),
         };
 
-        if db.get(&id)?.is_none() {
-            db.insert(id, tick)?;
+        if db.get(&id.to_bytes())?.is_none() {
+            db.insert(id.to_bytes(), tick)?;
         }
 
         println!("Stored V3 price for {address:?}: {price}");
@@ -606,8 +607,8 @@ async fn uniswap_v4_listener(db: Db, provider: &impl Provider) -> Result<(), Ser
             block: log.block_number.unwrap_or_default(),
         };
 
-        if db.get(&id)?.is_none() {
-            db.insert(id, tick)?;
+        if db.get(&id.to_bytes())?.is_none() {
+            db.insert(id.to_bytes(), tick)?;
         }
 
         let pair_address = log.address();

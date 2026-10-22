@@ -101,17 +101,16 @@ pub struct TokenPairId {
     pub timestamp: u64,
 }
 
-impl AsRef<[u8]> for TokenPairId {
-    fn as_ref(&self) -> &[u8] {
-        const TIMESTAMP_SIZE: usize = 8;
-        const VERSION_SIZE: usize = 1;
-
-        let pair_address = self.pair_address.as_ref();
-        let mut bytes = Vec::with_capacity(VERSION_SIZE + pair_address.len() + TIMESTAMP_SIZE);
-        bytes.push(self.version.into());
-        bytes.extend_from_slice(pair_address);
-        bytes.extend_from_slice(&self.timestamp.to_be_bytes());
-        Box::leak(bytes.into_boxed_slice())
+impl TokenPairId {
+    pub fn to_bytes(&self) -> [u8; 41] {
+        let mut buf = [0u8; 41];
+        buf[0] = self.version.into();
+        match &self.pair_address {
+            PairAddress::Address(a) => buf[1..21].copy_from_slice(a),
+            PairAddress::PoolId(p) => buf[1..33].copy_from_slice(p),
+        }
+        buf[33..41].copy_from_slice(&self.timestamp.to_be_bytes());
+        buf
     }
 }
 
